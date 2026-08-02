@@ -70,7 +70,14 @@ class ResourceController extends Controller
 
         $data = $this->validated($request, null);
 
-        $handle = $data['handle'] ?: Str::snake($data['title']);
+        // `validate()` omits a nullable key that was not sent at all, so this
+        // reads with `??` rather than `?:`.
+        //
+        // `Str::slug(…, '_')` rather than `Str::snake()`: snake leaves a
+        // hyphen where the title had one ("Warm-up routine" → "warm-up_routine")
+        // and transliterates nothing, so a German title comes out with an
+        // umlaut in a handle that a URL then percent-encodes.
+        $handle = ($data['handle'] ?? null) ?: Str::slug($data['title'], '_');
 
         if (Resource::query()->acrossBrands()->where('handle', $handle)->exists()) {
             return back()->withErrors(['handle' => __('lead-magnets::resources.handle_taken')]);
@@ -88,7 +95,7 @@ class ResourceController extends Controller
         $this->authorizeOrFail($request, 'view lead magnets');
 
         $record = Resource::query()->find($resource);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         $state = (string) $request->input('state', '');
 
@@ -150,7 +157,7 @@ class ResourceController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnets');
 
         $record = Resource::query()->find($resource);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         return Inertia::render('lead-magnets::Resources/Edit', [
             'resource' => [
@@ -180,7 +187,7 @@ class ResourceController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnets');
 
         $record = Resource::query()->find($resource);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         $record->update($this->attributes($this->validated($request, $record)));
 
@@ -192,7 +199,7 @@ class ResourceController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnets');
 
         $record = Resource::query()->find($resource);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         // Grants and their audit rows go with it. Keeping download records for
         // a resource that no longer exists would leave an audit nobody can

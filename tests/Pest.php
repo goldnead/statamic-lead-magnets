@@ -2,6 +2,7 @@
 
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Tests\TestCase;
+use Illuminate\Support\Facades\Storage;
 
 uses(TestCase::class)->in('Feature', 'Unit');
 
@@ -22,7 +23,7 @@ function makeResource(array $attributes = []): Resource
     ], $attributes);
 
     if (($attributes['delivery_type'] ?? null) === Resource::TYPE_FILE && $attributes['file_path']) {
-        Illuminate\Support\Facades\Storage::disk('lead-magnets')
+        Storage::disk('lead-magnets')
             ->put($attributes['file_path'], 'the file itself');
     }
 

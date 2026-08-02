@@ -33,6 +33,21 @@ abstract class TestCase extends AddonTestCase
 
     protected string $addonServiceProvider = ServiceProvider::class;
 
+    /**
+     * Statamic's file user repository writes a YAML file per user, and
+     * `RefreshDatabase` knows nothing about files. Left alone they accumulate
+     * across the whole run, so the tenth test finds nine strangers already
+     * signed up — and the permission sweeps then measure the wrong install.
+     */
+    protected function tearDown(): void
+    {
+        foreach (glob(__DIR__.'/__fixtures__/users/*.yaml') ?: [] as $file) {
+            @unlink($file);
+        }
+
+        parent::tearDown();
+    }
+
     protected function getPackageProviders($app): array
     {
         return [
@@ -50,6 +65,11 @@ abstract class TestCase extends AddonTestCase
         $app['config']->set('database.connections.testing', $this->testingConnection());
 
         $app['config']->set('statamic.users.repository', 'file');
+
+        // Free Statamic allows exactly one user, and the CP authorization
+        // sweep needs at least two (one with the permission, one without).
+        // Nothing this addon does depends on Pro; this is a fixture concern.
+        $app['config']->set('statamic.editions.pro', true);
         $app['config']->set('mail.default', 'array');
         $app['config']->set('mail.from', ['address' => 'noreply@example.com', 'name' => 'Test']);
 
@@ -58,11 +78,25 @@ abstract class TestCase extends AddonTestCase
             'root' => storage_path('framework/testing/lead-magnets'),
             'throw' => false,
         ]);
-        $app['config']->set('lead-magnets.delivery.disk', 'lead-magnets');
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Set after boot, not in defineEnvironment().
+        //
+        // `mergeConfigFrom()` is a shallow `array_merge`, so a
+        // `lead-magnets.delivery.disk` written before the provider registers
+        // replaces the package's whole `delivery` array — link_ttl,
+        // max_downloads and grant_ttl_days all become null, and the suite then
+        // measures an addon nobody will ever install. Writing after boot
+        // touches the one key and leaves the merged defaults alone.
+        config()->set('lead-magnets.delivery.disk', 'lead-magnets');
 
         // The throttle would otherwise turn the eleventh request in a test
-        // class into a 429 that has nothing to do with what is being tested.
-        $app['config']->set('lead-magnets.requests.throttle', '10000,1');
+        // class into a 429 that has nothing to do with what is under test.
+        config()->set('lead-magnets.requests.throttle', '10000,1');
     }
 
     /**

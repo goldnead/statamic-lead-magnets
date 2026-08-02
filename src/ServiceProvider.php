@@ -153,6 +153,25 @@ class ServiceProvider extends AddonServiceProvider
     protected function bootSchedule(): self
     {
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            // Named, and checked against the names already registered.
+            //
+            // `callAfterResolving` alone is not enough. It fires once per
+            // resolution, which is the right shape — but `bootAddon()` itself
+            // runs more than once in a Statamic application, so the callback
+            // gets *registered* twice and the entry lands twice.
+            //
+            // Marketing measured the same duplication and survived it by luck:
+            // `onOneServer()` with a fixed name means the second copy loses the
+            // mutex and is skipped. Luck is not a design, and the next entry
+            // added without `onOneServer()` would simply run twice — for a
+            // digest, that is two mails to the same person.
+            $already = collect($schedule->events())
+                ->contains(fn ($event) => $event->description === 'lead-magnets-sweep');
+
+            if ($already) {
+                return;
+            }
+
             $schedule->command('lead-magnets:sweep')
                 ->hourly()
                 ->onOneServer()

@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Services;
 use Goldnead\LeadMagnets\Events\ResourceConfirmed;
 use Goldnead\LeadMagnets\Events\ResourceRequested;
 use Goldnead\LeadMagnets\GrantState;
+use Goldnead\LeadMagnets\Models\Download;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\ConfirmationToken;
@@ -150,12 +151,24 @@ class GrantService
     {
         $confirmedAt = Carbon::now();
 
+        // Activation switches the clock. Until now `expires_at` held the
+        // confirmation window — "you have three days to confirm"; from here it
+        // holds the access lifetime — "your access lasts a year", or nothing
+        // at all when the resource sets none. Leaving the confirmation
+        // deadline in place would silently expire every grant three days after
+        // it was confirmed, which is the kind of defect that only surfaces as
+        // "the download link stopped working" weeks later.
+        $resource = $grant->resource ?? Resource::query()->find($grant->resource_id);
+        $days = $resource?->grantTtlDays();
+        $expiresAt = $days === null ? null : $confirmedAt->copy()->addDays($days);
+
         $changed = Grant::query()
             ->whereKey($grant->getKey())
             ->where('state', GrantState::PENDING)
             ->update([
                 'state' => GrantState::ACTIVE,
                 'confirmed_at' => $confirmedAt,
+                'expires_at' => $expiresAt,
                 'token_hash' => null,
                 'updated_at' => $confirmedAt,
             ]);
@@ -167,6 +180,7 @@ class GrantService
         $grant->forceFill([
             'state' => GrantState::ACTIVE,
             'confirmed_at' => $confirmedAt,
+            'expires_at' => $expiresAt,
             'token_hash' => null,
         ])->syncOriginal();
 
@@ -253,7 +267,7 @@ class GrantService
      *
      * @param  array<string, mixed>  $context
      */
-    public function recordDownload(Grant $grant, array $context = []): \Goldnead\LeadMagnets\Models\Download
+    public function recordDownload(Grant $grant, array $context = []): Download
     {
         return DB::transaction(function () use ($grant, $context) {
             Grant::query()->whereKey($grant->getKey())->increment('download_count');
@@ -263,7 +277,7 @@ class GrantService
             return $grant->downloads()->create([
                 'brand_id' => $grant->brand_id,
                 'downloaded_at' => Carbon::now(),
-                'ip_hash' => isset($context['ip']) && $context['ip'] !== null
+                'ip_hash' => isset($context['ip'])
                     ? hash('sha256', (string) $context['ip'])
                     : null,
                 'user_agent' => isset($context['user_agent'])
