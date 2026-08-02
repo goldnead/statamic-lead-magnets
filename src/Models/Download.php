@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Models;
 use Goldnead\BrandContext\Concerns\HasBrand;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * One redemption of one grant. The audit row the spec asks for: who, when,
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $brand_id
  * @property int $grant_id
- * @property \Illuminate\Support\Carbon|null $downloaded_at
+ * @property Carbon|null $downloaded_at
  * @property string|null $ip_hash
  * @property string|null $user_agent
  */

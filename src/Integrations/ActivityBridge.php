@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets\Integrations;
 
+use Goldnead\Activity\Facades\Activity;
 use Goldnead\LeadMagnets\Events\GrantEvent;
 use Goldnead\LeadMagnets\Events\ResourceConfirmed;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
@@ -16,8 +17,11 @@ use Goldnead\LeadMagnets\Events\ResourceRequested;
  */
 class ActivityBridge extends Bridge
 {
-    /** @var class-string */
-    protected const FACADE = \Goldnead\Activity\Facades\Activity::class;
+    /** @return class-string */
+    protected function facade(): string
+    {
+        return Activity::class;
+    }
 
     /** @var array<class-string<GrantEvent>, string> */
     public const EVENT_TYPES = [
@@ -29,7 +33,7 @@ class ActivityBridge extends Bridge
 
     public function available(): bool
     {
-        return $this->enabled('activity') && class_exists(self::FACADE);
+        return $this->enabled('activity') && class_exists($this->facade());
     }
 
     public function record(GrantEvent $event): void
@@ -44,7 +48,7 @@ class ActivityBridge extends Bridge
             return;
         }
 
-        $facade = self::FACADE;
+        $facade = $this->facade();
 
         if (! $this->rootHas($facade, 'record')) {
             return;

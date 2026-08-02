@@ -32,7 +32,7 @@ class RequestController extends Controller
             ->where('published', true)
             ->first();
 
-        abort_unless($resource, 404);
+        abort_if($resource === null, 404);
 
         $grant = $leadMagnets->request($resource, $data['email'], [
             'source' => 'form',

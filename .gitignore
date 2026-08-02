@@ -5,11 +5,18 @@
 .phpunit.result.cache
 .DS_Store
 
-# Never commit the Vite hot file: its presence tells the Statamic Vite tag to
-# load assets from a dev server that does not exist on the installing site.
-/resources/dist/hot
+# The Control Panel bundle is a build artefact, not source. It reaches an
+# installing site through the GitHub release (`extra.download-dist` in
+# composer.json + pixelfear/composer-dist-plugin), built by
+# .github/workflows/release-dist.yml. Committing it would put a minified blob
+# in every diff and in the history for good.
+#
+# The hot file must never ship under any scheme: its presence tells the
+# Statamic Vite tag to load assets from a dev server the site does not run.
+/resources/dist
 
 # A library must not pin its consumers: Composer ignores a dependency lock file
 # entirely, so committing one constrains nothing and only makes the CI matrix
 # lie about which versions were actually resolved.
 /composer.lock
+/.phpstan

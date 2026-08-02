@@ -3,6 +3,8 @@
 namespace Goldnead\LeadMagnets\Integrations;
 
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\Marketing\Contracts\Repositories\MailingListRepository;
+use Goldnead\Marketing\Services\SubscriptionService;
 
 /**
  * Optional: goldnead/statamic-marketing.
@@ -24,17 +26,23 @@ use Goldnead\LeadMagnets\Models\Grant;
  */
 class MarketingBridge extends Bridge
 {
-    /** @var class-string */
-    protected const SERVICE = \Goldnead\Marketing\Services\SubscriptionService::class;
+    /** @return class-string */
+    protected function service(): string
+    {
+        return SubscriptionService::class;
+    }
 
-    /** @var class-string */
-    protected const REPOSITORY = \Goldnead\Marketing\Contracts\Repositories\MailingListRepository::class;
+    /** @return class-string */
+    protected function repository(): string
+    {
+        return MailingListRepository::class;
+    }
 
     public function available(): bool
     {
         return $this->enabled('marketing')
-            && class_exists(self::SERVICE)
-            && interface_exists(self::REPOSITORY);
+            && class_exists($this->service())
+            && interface_exists($this->repository());
     }
 
     public function onActivated(Grant $grant): void
@@ -46,14 +54,14 @@ class MarketingBridge extends Bridge
         }
 
         $this->attempt('marketing subscription ['.$handle.']', function () use ($grant, $handle) {
-            $lists = app(self::REPOSITORY);
+            $lists = app($this->repository());
             $list = $lists->find($handle);
 
             if (! $list) {
                 return null;
             }
 
-            $service = app(self::SERVICE);
+            $service = app($this->service());
 
             if (! method_exists($service, 'subscribe')) {
                 return null;

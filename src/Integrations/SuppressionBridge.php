@@ -2,6 +2,9 @@
 
 namespace Goldnead\LeadMagnets\Integrations;
 
+use Goldnead\Suppression\Facades\SuppressionGate;
+use Illuminate\Support\Facades\Log;
+
 /**
  * Optional: goldnead/statamic-suppression.
  *
@@ -16,12 +19,15 @@ namespace Goldnead\LeadMagnets\Integrations;
  */
 class SuppressionBridge extends Bridge
 {
-    /** @var class-string */
-    protected const FACADE = \Goldnead\Suppression\Facades\SuppressionGate::class;
+    /** @return class-string */
+    protected function facade(): string
+    {
+        return SuppressionGate::class;
+    }
 
     public function available(): bool
     {
-        return $this->enabled('suppression') && class_exists(self::FACADE);
+        return $this->enabled('suppression') && class_exists($this->facade());
     }
 
     public function blocks(string $email): bool
@@ -30,7 +36,7 @@ class SuppressionBridge extends Bridge
             return false;
         }
 
-        $facade = self::FACADE;
+        $facade = $this->facade();
 
         if (! $this->rootHas($facade, 'isSuppressed')) {
             return false;
@@ -39,7 +45,7 @@ class SuppressionBridge extends Bridge
         try {
             return (bool) $facade::isSuppressed($email);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning(
+            Log::warning(
                 '[lead-magnets] suppression check failed, holding the send: '.$e->getMessage()
             );
 

@@ -108,11 +108,13 @@ class DeliveryService
     /** @return array<string, string> */
     protected function variables(Grant $grant): array
     {
+        $resource = $grant->resource;
+
         return [
             'email' => $grant->email,
-            'resource_title' => (string) ($grant->resource?->title ?? ''),
-            'resource_handle' => (string) ($grant->resource?->handle ?? ''),
-            'resource_description' => (string) ($grant->resource?->description ?? ''),
+            'resource_title' => (string) $resource->title,
+            'resource_handle' => (string) $resource->handle,
+            'resource_description' => (string) ($resource->description ?? ''),
         ];
     }
 

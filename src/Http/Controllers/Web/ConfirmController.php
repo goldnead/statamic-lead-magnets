@@ -23,7 +23,7 @@ class ConfirmController extends Controller
         // An unknown token, a token from another brand and a token that was
         // already consumed are three different things behind the scenes and
         // one thing here: nothing to confirm.
-        abort_unless($grant, 404);
+        abort_if($grant === null, 404);
 
         return response()->view('lead-magnets::confirmed', [
             'grant' => $grant,

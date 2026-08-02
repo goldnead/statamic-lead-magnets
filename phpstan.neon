@@ -4,6 +4,13 @@ includes:
 parameters:
     level: 5
 
+    # A project-local cache. PHPStan's default temp directory is shared across
+    # every project on the machine, and a cache entry written from another
+    # checkout points at that checkout's phpstan.phar — which produces
+    # "… is not a file" internal errors here that have nothing to do with this
+    # code.
+    tmpDir: .phpstan
+
     paths:
         - src
         - config
@@ -19,3 +26,26 @@ parameters:
         -
             identifier: class.notFound
             path: src/Integrations/*
+
+        # Larastan verifies a `view-string` by asking the view finder whether
+        # the template exists. This addon registers its `lead-magnets::`
+        # namespace in `bootAddon()`, which never runs during analysis, so both
+        # views come back unknown. The templates are real — RequestFlowTest and
+        # BridgeTest render them, and a missing one fails those. Narrowed to
+        # the two Mailables so a wrong view path elsewhere is still reported.
+        -
+            identifier: argument.type
+            message: '#expects view-string, string given#'
+            paths:
+                - src/Mail/ConfirmationMail.php
+                - src/Mail/DeliveryMail.php
+
+        # Core's own docblock is wrong. `AddonServiceProvider::$vite` is
+        # annotated `list<string>`, and every Statamic 6 addon — including the
+        # ones core documents — assigns the associative form with `input`,
+        # `hotFile` and `publicDirectory`. Widening the property here would be
+        # a lie in the other direction; the shape is asserted for real in
+        # tests/Feature/AddonWiringTest.php.
+        -
+            identifier: property.defaultValue
+            path: src/ServiceProvider.php

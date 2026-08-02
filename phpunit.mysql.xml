@@ -2,7 +2,10 @@
 <!--
     The same suite, against a real MySQL server.
 
-        vendor/bin/pest --configuration=phpunit.mysql.xml
+        vendor/bin/pest -c phpunit.mysql.xml
+
+    (`-c`, not the long form: two consecutive hyphens are illegal inside an XML
+    comment and PHPUnit refuses to parse the file at all.)
 
     Needed because the default SQLite run cannot see the class of defect that
     took statamic-notifications' migrations down: InnoDB's 3072-byte index

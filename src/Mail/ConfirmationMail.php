@@ -30,7 +30,7 @@ class ConfirmationMail extends Mailable
         $resource = $this->grant->resource;
 
         $subject = $this->renderedSubject
-            ?: __('lead-magnets::mail.confirmation_subject', ['title' => $resource?->title ?? '']);
+            ?: __('lead-magnets::mail.confirmation_subject', ['title' => $resource->title]);
 
         $mail = $this->subject($subject);
 

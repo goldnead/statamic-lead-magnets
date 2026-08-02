@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Http\Controllers\Web;
 
 use Goldnead\LeadMagnets\Events\ResourceDownloaded;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -32,13 +33,19 @@ class DownloadController extends Controller
 {
     public function __invoke(Request $request, int $grant, GrantService $grants)
     {
-        $record = Grant::query()->with('resource')->find($grant);
+        $record = Grant::query()->find($grant);
 
-        abort_unless($record && $record->isRedeemable(), 403);
+        abort_unless($record !== null && $record->isRedeemable(), 403);
 
-        $resource = $record->resource;
+        // Fetched by key rather than through the relation, so a grant whose
+        // resource was deleted out from under it answers 404 instead of
+        // dereferencing null. The relation's type says it cannot happen; a
+        // route that serves files is not the place to take that on trust.
+        $resource = Resource::query()->find($record->resource_id);
 
-        abort_unless($resource, 404);
+        abort_if($resource === null, 404);
+
+        $record->setRelation('resource', $resource);
 
         $download = $grants->recordDownload($record, [
             'ip' => $request->ip(),
@@ -48,7 +55,7 @@ class DownloadController extends Controller
         ResourceDownloaded::dispatch($record, $download);
 
         if ($resource->isLink()) {
-            abort_unless($resource->link_url, 404);
+            abort_if(! $resource->link_url, 404);
 
             // Counted first, then forwarded: a redirect that is not audited is
             // a delivery nobody can prove happened.

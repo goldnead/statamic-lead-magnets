@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets\Integrations;
 
+use Goldnead\Leadhub\Facades\LeadHub;
 use Goldnead\LeadMagnets\Models\Grant;
 
 /**
@@ -13,12 +14,25 @@ use Goldnead\LeadMagnets\Models\Grant;
  */
 class LeadhubBridge extends Bridge
 {
-    /** @var class-string */
-    protected const FACADE = \Goldnead\Leadhub\Facades\LeadHub::class;
+    /**
+     * The sibling class this bridge speaks to.
+     *
+     * A method rather than a hard-coded constant so a host application can
+     * point the bridge at a fork or a decorator, and so the guard logic can be
+     * exercised against a stand-in without aliasing anything into the sibling
+     * namespace — a global mutation that cannot be undone and leaks into every
+     * later test in the process.
+     *
+     * @return class-string
+     */
+    protected function facade(): string
+    {
+        return LeadHub::class;
+    }
 
     public function available(): bool
     {
-        return $this->enabled('leadhub') && class_exists(self::FACADE);
+        return $this->enabled('leadhub') && class_exists($this->facade());
     }
 
     /**
@@ -34,7 +48,7 @@ class LeadhubBridge extends Bridge
             return null;
         }
 
-        $facade = self::FACADE;
+        $facade = $this->facade();
 
         return $this->attempt('leadhub contact sync', function () use ($facade, $grant) {
             $contact = null;
@@ -50,7 +64,14 @@ class LeadhubBridge extends Bridge
                 ]);
             }
 
-            $id = is_array($contact) ? ($contact['id'] ?? null) : ($contact?->id ?? null);
+            // leadhub answers with an array; a decorated or forked
+            // implementation may answer with an object. Both are read, and
+            // neither is assumed.
+            $id = match (true) {
+                is_array($contact) => $contact['id'] ?? null,
+                is_object($contact) => $contact->id ?? null,
+                default => null,
+            };
 
             if ($id === null) {
                 return null;

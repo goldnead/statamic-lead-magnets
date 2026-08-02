@@ -2,6 +2,8 @@
 
 namespace Goldnead\LeadMagnets\Integrations;
 
+use Goldnead\EmailTemplates\Facades\EmailTemplates;
+
 /**
  * Optional: goldnead/statamic-email-templates.
  *
@@ -11,12 +13,15 @@ namespace Goldnead\LeadMagnets\Integrations;
  */
 class EmailTemplatesBridge extends Bridge
 {
-    /** @var class-string */
-    protected const FACADE = \Goldnead\EmailTemplates\Facades\EmailTemplates::class;
+    /** @return class-string */
+    protected function facade(): string
+    {
+        return EmailTemplates::class;
+    }
 
     public function available(): bool
     {
-        return $this->enabled('email_templates') && class_exists(self::FACADE);
+        return $this->enabled('email_templates') && class_exists($this->facade());
     }
 
     /**
@@ -31,7 +36,7 @@ class EmailTemplatesBridge extends Bridge
             return null;
         }
 
-        $facade = self::FACADE;
+        $facade = $this->facade();
 
         if (! $this->rootHas($facade, 'resolve')) {
             return null;

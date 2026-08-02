@@ -21,7 +21,7 @@ class GrantController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
         $record = Grant::query()->find($grant);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         $grants->revoke($record);
 
@@ -33,7 +33,7 @@ class GrantController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
         $record = Grant::query()->with('resource')->find($grant);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         $grants->reinstate($record);
 
@@ -53,7 +53,7 @@ class GrantController extends Controller
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
         $record = Grant::query()->with('resource')->find($grant);
-        abort_unless($record, 404);
+        abort_if($record === null, 404);
 
         if (! $delivery->deliver($record)) {
             return back()->withErrors(['grant' => __('lead-magnets::grants.resend_refused')]);

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * One person's access to one resource.
@@ -19,14 +20,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $contact_id
  * @property string $state
  * @property string|null $token_hash
- * @property \Illuminate\Support\Carbon|null $requested_at
- * @property \Illuminate\Support\Carbon|null $confirmed_at
- * @property \Illuminate\Support\Carbon|null $delivered_at
- * @property \Illuminate\Support\Carbon|null $revoked_at
- * @property \Illuminate\Support\Carbon|null $expires_at
+ * @property Carbon|null $requested_at
+ * @property Carbon|null $confirmed_at
+ * @property Carbon|null $delivered_at
+ * @property Carbon|null $revoked_at
+ * @property Carbon|null $expires_at
  * @property int $download_count
  * @property array<string, mixed>|null $meta
- * @property-read Resource|null $resource
  */
 class Grant extends Model
 {
@@ -58,7 +58,13 @@ class Grant extends Model
 
     protected $hidden = ['token_hash'];
 
-    /** @return BelongsTo<Resource, $this> */
+    /**
+     * Fully qualified in the docblock on purpose: Pint's `phpdoc_types` fixer
+     * rewrites a bare `Resource` to PHP's native `resource` type, and the
+     * generic then reads as a mismatch between two identical-looking strings.
+     *
+     * @return BelongsTo<\Goldnead\LeadMagnets\Models\Resource, $this>
+     */
     public function resource(): BelongsTo
     {
         return $this->belongsTo(Resource::class, 'resource_id');
