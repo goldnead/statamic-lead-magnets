@@ -2,11 +2,14 @@
 # unless it is export-ignored. Tests, CI config and the build sources are not
 # the buyer's problem.
 #
-# Never add /config, /database, /resources/dist, /resources/lang,
-# /resources/views, /routes, /src, README.md, CHANGELOG.md or LICENSE to this
-# list — the published views are a documented override surface, the
-# translations are half the front end, and /resources/dist is the only way the
-# Control Panel assets reach an installing site that has no Node toolchain.
+# Never add /config, /database, /resources/lang, /resources/views, /routes,
+# /src, README.md, CHANGELOG.md or LICENSE to this list — the published views
+# are a documented override surface and the translations are half the front
+# end.
+#
+# /resources/dist is absent from both this file and the repository: the Control
+# Panel bundle is fetched from the GitHub release by
+# pixelfear/composer-dist-plugin and unpacked there at install time.
 
 /.github            export-ignore
 /tests              export-ignore

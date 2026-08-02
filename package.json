@@ -5,7 +5,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "build:check": "bash scripts/check-dist-fresh.sh",
+        "build:check": "bash scripts/build-cp.sh",
         "test": "vitest run"
     },
     "dependencies": {

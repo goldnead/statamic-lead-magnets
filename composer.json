@@ -24,6 +24,7 @@
     "require": {
         "php": "^8.2",
         "goldnead/statamic-brand-context": "^1.5|^1.6|^1.7",
+        "pixelfear/composer-dist-plugin": "^0.1",
         "laravel/framework": "^12.40|^13.0",
         "statamic/cms": "^6.0"
     },
@@ -52,6 +53,10 @@
         }
     },
     "extra": {
+        "download-dist": {
+            "url": "https://github.com/goldnead/statamic-lead-magnets/releases/download/{$version}/dist.tar.gz",
+            "path": "resources/dist"
+        },
         "statamic": {
             "slug": "lead-magnets",
             "name": "Lead Magnets",

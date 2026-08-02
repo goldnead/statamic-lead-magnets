@@ -164,7 +164,7 @@ jobs:
         run: vendor/bin/pest --configuration=phpunit.mysql.xml --colors=always
 
   static:
-    name: Pint · Larastan · addon-lint
+    name: Pint · Larastan
     runs-on: ubuntu-latest
 
     steps:
@@ -190,10 +190,13 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress
 
   dist:
-    # If `resources/dist` is committed, a source change that ships without a
-    # rebuild is green in CI and stale in every user's browser. This job is the
-    # only thing that catches it.
-    name: Built CP assets are current
+    # The CP bundle is not committed — it is attached to the GitHub release by
+    # .github/workflows/release-dist.yml and fetched by
+    # pixelfear/composer-dist-plugin. Nothing about that is verified at tag
+    # time except that the build works, so it is verified on every push
+    # instead: a bundle that stops compiling must not be discovered by the
+    # release.
+    name: The CP bundle still builds
     runs-on: ubuntu-latest
 
     steps:
@@ -220,5 +223,5 @@ jobs:
       - name: Install JS dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Rebuild and fail on drift
-        run: bash scripts/check-dist-fresh.sh
+      - name: Build
+        run: bash scripts/build-cp.sh

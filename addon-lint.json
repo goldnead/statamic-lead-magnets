@@ -1,0 +1,10 @@
+{
+    "_why": {
+        "release.versioning": "Suppressed for the pre-release window only, and it comes back out with the first tag. This repository is deliberately untagged and unpushed: the build brief that produced it forbids `git push`, `gh repo create` and tags, because the addon has to be reviewed before it exists publicly. The rule is right about everything it says — Composer resolves an addon by its tags, and an untagged repository can only be installed from a branch. Nothing about the package makes tagging hard; the tag has simply not been cut yet. Delete this entry when v1.0.0 is tagged, and expect the rule to pass without any other change.",
+        "release.screenshots": "Not suppressed, and deliberately left amber. The Control Panel screens exist (resources/js/pages/Resources/{Index,Edit,Show}.vue) and are exercised by tests/Feature/CpResourceCrudTest.php, but no screenshot could be taken: the studio playground lives under ~/Documents, which is unreadable on the machine this addon was built on because of an open macOS file-permission grant. A screenshot faked from anything other than the running Control Panel would be worse than none. Take them on a machine with playground access before the Marketplace listing goes up.",
+        "release.installable": "Informational and accurate. `goldnead/statamic-brand-context` is the one hard dependency, and it is public on Packagist since 01.08.2026 — no `repositories` block is needed here, which is why release.resolvable-dependencies passes."
+    },
+    "disable": [
+        "release.versioning"
+    ]
+}

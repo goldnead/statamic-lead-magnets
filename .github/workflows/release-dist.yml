@@ -1,0 +1,70 @@
+name: release-dist
+
+# The Control Panel bundle, attached to the release the consumer installs.
+#
+# Consumers install this addon with Composer and have no Node toolchain, so
+# something has to put the built JavaScript and CSS on their disk. The two
+# supported answers are: commit `resources/dist` and gate it in CI, or fetch it
+# from the GitHub release with `pixelfear/composer-dist-plugin`. This addon
+# takes the second — `extra.download-dist` in composer.json names the URL below
+# — which keeps a compiled bundle out of every diff and out of the repository's
+# history.
+#
+# The consequence, and it is not optional: a tag without this artifact is a
+# release that installs with no CP assets at all, silently. This workflow is
+# what makes the tag safe, so it runs on the tag itself and fails loudly.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dist:
+    name: Build and attach dist.tar.gz
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        # `@statamic/cms` is a file: dependency pointing into the installed
+        # vendor directory, so Composer has to run before npm.
+        run: composer update --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build the Control Panel bundle
+        run: npm run build
+
+      - name: Refuse to ship an empty bundle
+        run: |
+          test -f resources/dist/build/manifest.json \
+            || (echo "No manifest at resources/dist/build/manifest.json — the build produced nothing." && exit 1)
+          test ! -f resources/dist/hot \
+            || (echo "A hot file was built. It must never ship: it points the CP at a dev server." && exit 1)
+
+      - name: Pack
+        run: tar -czf dist.tar.gz -C resources dist
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist.tar.gz
