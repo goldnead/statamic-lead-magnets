@@ -1,0 +1,224 @@
+name: tests
+
+# What this matrix has to prove.
+#
+# `composer.json` promises PHP ^8.2 and Laravel ^12.40|^13.0. A matrix that
+# varies only PHP leaves the framework range as a claim nobody checked, which
+# is how an addon ends up declaring a Laravel line it has never been run
+# against. Every cell below is a combination that resolves; PHP 8.2 with
+# Laravel 13 is excluded rather than left to fail, because Laravel 13 requires
+# PHP ^8.3.
+#
+# No sibling addon is checked out anywhere in this file, and that is
+# deliberate: this package requires none of them, and a CI run that installed
+# them would stop proving the one thing the README claims — that the request,
+# confirmation and download flow works with nothing else installed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pest:
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+        laravel: ['^12.40', '^13.0']
+        exclude:
+          # Laravel 13 requires PHP ^8.3.
+          - php: '8.2'
+            laravel: '^13.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_sqlite, sqlite3, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Determine Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ matrix.php }}-${{ matrix.laravel }}-${{ hashFiles('composer.json') }}
+          restore-keys: |
+            composer-${{ matrix.php }}-${{ matrix.laravel }}-
+            composer-${{ matrix.php }}-
+
+      - name: Pin Laravel and Statamic for this cell
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" "statamic/cms:^6.0" \
+            --no-update --no-interaction
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      - name: Show what actually resolved
+        run: composer show --direct
+
+      - name: Run Pest
+        run: vendor/bin/pest --colors=always
+
+  lowest:
+    # The floor of every declared range, which is what a user with an older
+    # lock actually gets. A highest-only matrix never sees it.
+    name: prefer-lowest · PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            laravel: '^12.40'
+          - php: '8.3'
+            laravel: '^13.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_sqlite, sqlite3, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Pin Laravel for this cell
+        run: composer require "laravel/framework:${{ matrix.laravel }}" --no-update --no-interaction
+
+      - name: Install the lowest resolvable set
+        run: composer update --prefer-lowest --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      - name: Show what actually resolved
+        run: composer show --direct
+
+      - name: Run Pest
+        run: vendor/bin/pest --colors=always
+
+  mysql:
+    # SQLite has no InnoDB key limit and no utf8mb4 byte arithmetic. This addon
+    # carries a three-column brand-scoped unique ending in an email address,
+    # which is precisely the shape that passed on SQLite and failed to build on
+    # MySQL in statamic-notifications.
+    name: MySQL (index limits SQLite cannot see)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lead_magnets_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, mysqli, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      - name: Run Pest against MySQL
+        env:
+          DB_DRIVER: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: lead_magnets_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: vendor/bin/pest --configuration=phpunit.mysql.xml --colors=always
+
+  static:
+    name: Pint · Larastan · addon-lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      # A check, never an auto-commit onto a contributor's branch.
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: Larastan
+        run: vendor/bin/phpstan analyse --no-progress
+
+  dist:
+    # If `resources/dist` is committed, a source change that ships without a
+    # rebuild is green in CI and stale in every user's browser. This job is the
+    # only thing that catches it.
+    name: Built CP assets are current
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, intl, fileinfo, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        # @statamic/cms is a file: dependency on the installed vendor
+        # directory, so Composer has to run before npm.
+        run: composer update --prefer-stable --prefer-dist --no-progress --no-interaction
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Rebuild and fail on drift
+        run: bash scripts/check-dist-fresh.sh

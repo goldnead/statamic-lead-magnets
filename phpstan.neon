@@ -1,0 +1,21 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+
+    paths:
+        - src
+        - config
+        - routes
+
+    treatPhpDocTypesAsCertain: false
+
+    # The optional siblings are not installed here — that is the point of the
+    # bridges, and `composer.json` requires none of them. Their classes are
+    # therefore unknown to the analyser, which is correct and not a finding:
+    # every reference to them sits behind a `class_exists()` guard.
+    ignoreErrors:
+        -
+            identifier: class.notFound
+            path: src/Integrations/*

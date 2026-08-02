@@ -1,0 +1,23 @@
+/**
+ * Lead Magnets — Statamic 6 CP styles.
+ *
+ * Import Statamic's own Tailwind entry rather than the bare framework. That is
+ * what carries the design tokens the Control Panel is themed with — the
+ * themeable colours (content-bg, content-border, primary), the spacing scale,
+ * `max-w-page`, `text-2xs` — so this addon's screens re-theme with the rest of
+ * the CP instead of drifting the moment a user changes the accent colour. It
+ * also deliberately omits Preflight, so the addon never re-applies a CSS reset
+ * on top of the CP's own base styles.
+ */
+
+@import "@statamic/cms/tailwind.css";
+
+@source "../js/**/*.{vue,js}";
+
+@layer addon-theme {
+    /* Reserved for Lead Magnets theme tokens (CSS variables). Nothing yet. */
+}
+
+@layer addon-utilities {
+    /* Reserved for Lead Magnets utility classes. Nothing yet. */
+}

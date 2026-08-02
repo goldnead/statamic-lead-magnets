@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'grants' => 'Access',
+    'email' => 'Email',
+    'state' => 'State',
+    'requested_at' => 'Requested',
+    'confirmed_at' => 'Confirmed',
+    'delivered_at' => 'Delivered',
+    'expires_at' => 'Expires',
+    'downloads' => 'Downloads',
+    'active' => 'Active',
+    'pending' => 'Pending',
+    'revoked' => 'Revoked',
+    'expired' => 'Expired',
+    'revoke' => 'Revoke access',
+    'reinstate' => 'Reinstate access',
+    'resend' => 'Send the link again',
+    'revoke_confirm' => 'Revoke this access? Links already sent stop working immediately.',
+    'revoked_flash' => 'Access revoked.',
+    'reinstated' => 'Access reinstated.',
+    'resent' => 'A fresh download link is on its way.',
+    'resend_refused' => 'This access cannot be delivered: it is not active, it has lapsed, it is over its download limit, or the address is suppressed.',
+    'empty' => 'Nobody has asked for this resource yet.',
+];

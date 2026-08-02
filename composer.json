@@ -1,0 +1,97 @@
+{
+    "name": "goldnead/statamic-lead-magnets",
+    "description": "Confirm-first resource delivery: a visitor asks for a file, confirms the address, and the download link is signed, time-boxed and audited.",
+    "type": "statamic-addon",
+    "license": "MIT",
+    "keywords": [
+        "statamic",
+        "statamic-addon",
+        "lead-magnet",
+        "double-opt-in",
+        "download",
+        "gated-content"
+    ],
+    "authors": [
+        {
+            "name": "Adrian Goldner",
+            "email": "info@adriangoldner.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/goldnead/statamic-lead-magnets/issues",
+        "source": "https://github.com/goldnead/statamic-lead-magnets"
+    },
+    "require": {
+        "php": "^8.2",
+        "goldnead/statamic-brand-context": "^1.5|^1.6|^1.7",
+        "laravel/framework": "^12.40|^13.0",
+        "statamic/cms": "^6.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^2.9|^3.0",
+        "laravel/pint": "^1.18",
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^3.0|^4.0",
+        "pestphp/pest-plugin-laravel": "^3.0|^4.0"
+    },
+    "suggest": {
+        "goldnead/statamic-leadhub": "Turns a request into a contact and writes the resource's tags onto it when the grant activates.",
+        "goldnead/statamic-marketing": "Subscribes the confirmed address to a mailing list, and lends its double-opt-in wording to the confirmation mail.",
+        "goldnead/statamic-email-templates": "Lets an editor author the confirmation and delivery mails in the Control Panel instead of overriding Blade views.",
+        "goldnead/statamic-suppression": "Stops delivery to an address that has bounced or complained.",
+        "goldnead/statamic-activity": "Records request, confirmation, delivery and download on the shared activity ledger."
+    },
+    "autoload": {
+        "psr-4": {
+            "Goldnead\\LeadMagnets\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Goldnead\\LeadMagnets\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "slug": "lead-magnets",
+            "name": "Lead Magnets",
+            "description": "Gated resources with confirm-first delivery, signed download links and a download audit.",
+            "url": "https://github.com/goldnead/statamic-lead-magnets",
+            "developer": "Adrian Goldner",
+            "developer-url": "https://gldnr.studio"
+        },
+        "laravel": {
+            "providers": [
+                "Goldnead\\LeadMagnets\\ServiceProvider"
+            ],
+            "aliases": {
+                "LeadMagnets": "Goldnead\\LeadMagnets\\Facades\\LeadMagnets"
+            }
+        }
+    },
+    "scripts": {
+        "test": [
+            "@php vendor/bin/pest"
+        ],
+        "test:mysql": [
+            "@php vendor/bin/pest --configuration=phpunit.mysql.xml"
+        ],
+        "lint": [
+            "@php vendor/bin/pint --test"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "pixelfear/composer-dist-plugin": true,
+            "composer/installers": true,
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

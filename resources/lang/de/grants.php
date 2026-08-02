@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'grants' => 'Zugänge',
+    'email' => 'E-Mail',
+    'state' => 'Status',
+    'requested_at' => 'Angefragt',
+    'confirmed_at' => 'Bestätigt',
+    'delivered_at' => 'Zugestellt',
+    'expires_at' => 'Läuft ab',
+    'downloads' => 'Downloads',
+    'active' => 'Aktiv',
+    'pending' => 'Offen',
+    'revoked' => 'Entzogen',
+    'expired' => 'Abgelaufen',
+    'revoke' => 'Zugang entziehen',
+    'reinstate' => 'Zugang wiederherstellen',
+    'resend' => 'Link erneut senden',
+    'revoke_confirm' => 'Diesen Zugang entziehen? Bereits verschickte Links funktionieren sofort nicht mehr.',
+    'revoked_flash' => 'Zugang entzogen.',
+    'reinstated' => 'Zugang wiederhergestellt.',
+    'resent' => 'Ein frischer Download-Link ist unterwegs.',
+    'resend_refused' => 'Dieser Zugang lässt sich nicht ausliefern: nicht aktiv, abgelaufen, Download-Limit erreicht, oder die Adresse ist gesperrt.',
+    'empty' => 'Diese Ressource hat noch niemand angefragt.',
+];

@@ -1,0 +1,29 @@
+# Everything in this repo is downloaded into every site that installs the addon
+# unless it is export-ignored. Tests, CI config and the build sources are not
+# the buyer's problem.
+#
+# Never add /config, /database, /resources/dist, /resources/lang,
+# /resources/views, /routes, /src, README.md, CHANGELOG.md or LICENSE to this
+# list — the published views are a documented override surface, the
+# translations are half the front end, and /resources/dist is the only way the
+# Control Panel assets reach an installing site that has no Node toolchain.
+
+/.github            export-ignore
+/tests              export-ignore
+/art                export-ignore
+/screenshots        export-ignore
+/scripts            export-ignore
+/resources/js       export-ignore
+/resources/css      export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/.editorconfig      export-ignore
+/package.json       export-ignore
+/package-lock.json  export-ignore
+/vite.config.js     export-ignore
+/phpunit.xml        export-ignore
+/phpunit.mysql.xml  export-ignore
+/pint.json          export-ignore
+/phpstan.neon       export-ignore
+/phpstan-baseline.neon export-ignore
+/addon-lint.json    export-ignore

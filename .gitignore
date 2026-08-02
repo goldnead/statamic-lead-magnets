@@ -1,0 +1,15 @@
+/vendor
+/node_modules
+/.phpunit.cache
+/.phpunit.mysql.cache
+.phpunit.result.cache
+.DS_Store
+
+# Never commit the Vite hot file: its presence tells the Statamic Vite tag to
+# load assets from a dev server that does not exist on the installing site.
+/resources/dist/hot
+
+# A library must not pin its consumers: Composer ignores a dependency lock file
+# entirely, so committing one constrains nothing and only makes the CI matrix
+# lie about which versions were actually resolved.
+/composer.lock
