@@ -23,3 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   activity (ledger). Each is inert when its addon is absent.
 - `lead-magnets:sweep` console command and an hourly schedule entry for
   housekeeping of lapsed grants.
+- Multi-brand support through `goldnead/statamic-brand-context`: resources,
+  grants and download rows are brand-scoped, and each session-less public route
+  derives the brand from the value the visitor already carries. Resource handles
+  are unique across all brands, which is what makes that derivation safe.
+
+### Notes
+
+- The Control Panel bundle is not committed. It is attached to each GitHub
+  release by `.github/workflows/release-dist.yml` and fetched at install time
+  by `pixelfear/composer-dist-plugin` (`extra.download-dist`). A tag published
+  without that workflow succeeding installs with no CP assets.
+- Grant state lives in this package rather than in
+  `goldnead/statamic-entitlements`, which does not exist yet. The reasoning and
+  the cost are in the README under "Grant state".
