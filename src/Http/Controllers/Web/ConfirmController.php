@@ -28,7 +28,7 @@ class ConfirmController extends Controller
         return response()->view('lead-magnets::confirmed', [
             'grant' => $grant,
             'resource' => $grant->resource,
-            'lapsed' => $grant->isPending() && $grant->hasLapsed(),
+            'lapsed' => $grant->isPending() && $grant->confirmationLapsed(),
         ]);
     }
 }

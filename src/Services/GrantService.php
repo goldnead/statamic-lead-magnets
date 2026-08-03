@@ -2,19 +2,47 @@
 
 namespace Goldnead\LeadMagnets\Services;
 
-use Goldnead\LeadMagnets\Events\ResourceConfirmed;
+use Carbon\CarbonImmutable;
+use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\Entitlements\Facades\Entitlements;
+use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Events\ResourceRequested;
-use Goldnead\LeadMagnets\GrantState;
 use Goldnead\LeadMagnets\Models\Download;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\ConfirmationToken;
 use Goldnead\LeadMagnets\Support\EmailNormalizer;
+use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The state machine. Everything that changes a grant's state goes through here.
+ * The request and delivery flow. Access state belongs to entitlements.
+ *
+ * ## The division of labour
+ *
+ * This class writes the delivery record — the address, the confirmation
+ * secret, the audit — and asks `goldnead/statamic-entitlements` for every
+ * change of access. It never writes `status` on an entitlement and never
+ * resolves state itself. The one entitlements column it does write is
+ * `expires_at`, and only through {@see self::openWindow()}: setting the window
+ * is supplying an input the resolver reads, not implementing a second copy of
+ * the rules.
+ *
+ * ## The defect this class exists to keep fixed
+ *
+ * A grant waiting for a double opt-in has two clocks that look alike and are
+ * not: "you have 72 hours to confirm" and "your access lasts a year". Version
+ * 1.0.0 stored both in one column and had to overwrite one with the other at
+ * activation — a single line, and without it every confirmed access expired
+ * silently 72 hours later. It would have surfaced weeks on as "the download
+ * link stopped working".
+ *
+ * They are two columns now, on two different rows. The confirmation deadline is
+ * `lead_magnet_grants.confirm_expires_at` and belongs to the token; the access
+ * window is `entitlements.expires_at` and is written at activation and never
+ * before. There is no longer a value to overwrite, so there is no longer an
+ * overwrite to forget. `tests/Feature/ActivationWindowTest.php` holds the line.
  */
 class GrantService
 {
@@ -23,8 +51,8 @@ class GrantService
      *
      * Repeatable by design. Asking twice for the same resource from the same
      * address updates the one row the unique index allows and mints a fresh
-     * confirmation token — it does not create a second pending grant, and it
-     * does not un-confirm a grant that is already active.
+     * confirmation token — it does not create a second grant, and it does not
+     * un-confirm a grant that is already active.
      *
      * @param  array<string, mixed>  $meta
      */
@@ -35,76 +63,71 @@ class GrantService
         $grant = Grant::query()
             ->where('resource_id', $resource->id)
             ->where('email', $email)
-            ->first();
-
-        if (! $grant) {
-            $grant = new Grant([
-                'resource_id' => $resource->id,
-                'email' => $email,
-                'state' => GrantState::PENDING,
-            ]);
-        }
+            ->first()
+            ?? new Grant(['resource_id' => $resource->id, 'email' => $email, 'attempt' => 1]);
 
         $grant->requested_at = Carbon::now();
         $grant->meta = array_merge($grant->meta ?? [], $meta);
+        $grant->save();
         $grant->setRelation('resource', $resource);
+
+        $entitlement = $this->entitlementFor($grant, $resource);
+        $state = $entitlement->state();
 
         // A revoked grant stays revoked. Someone withdrew this access on
         // purpose, and a form submission is not the place to overturn that —
         // it would let anyone who knows the address undo a moderation
         // decision. Reinstating is a Control Panel action.
-        if ($grant->state === GrantState::REVOKED) {
-            $grant->save();
-
+        //
+        // A scheduled grant is left alone for the mirror-image reason: an
+        // operator set a start date, and a form submission does not move it.
+        if ($state === EntitlementState::Revoked || $state === EntitlementState::Scheduled) {
             ResourceRequested::dispatch($grant);
 
             return $grant;
         }
 
-        if (! $resource->requires_confirmation) {
-            // No confirmation asked for: the grant is born active. The
-            // activation still runs through activate() below when the row
-            // already existed, so the confirmed event fires once there too.
-            if ($grant->exists && $grant->state === GrantState::ACTIVE) {
-                $this->extend($grant, $resource);
-                $grant->save();
-
-                ResourceRequested::dispatch($grant);
-
-                return $grant;
-            }
-
-            $grant->token_hash = null;
-            $grant->state = GrantState::PENDING;
-            $this->extend($grant, $resource);
-            $grant->save();
-
-            ResourceRequested::dispatch($grant);
-
-            $this->activate($grant);
-
-            return $grant->refresh()->setRelation('resource', $resource);
-        }
-
-        if ($grant->state === GrantState::ACTIVE && ! $grant->hasLapsed()) {
+        if ($state->grantsAccess()) {
             // Already confirmed. Nothing to confirm again — the caller
             // re-sends the delivery mail, which is what the visitor actually
-            // wanted, and no second ResourceConfirmed goes out.
-            $this->extend($grant, $resource);
-            $grant->save();
+            // wanted, and no second confirmation goes out.
+            ResourceRequested::dispatch($grant);
+
+            return $grant;
+        }
+
+        if ($state === EntitlementState::Expired) {
+            // The window closed. A new request is a new window, so it gets a
+            // new entitlement rather than a rewrite of the old one: the expired
+            // row is a true record of an access period that happened, and
+            // entitlements answers over all of a subject's grants as an OR, so
+            // a second row is exactly how it expects repeat access to look.
+            $this->reopen($grant, $resource);
+        }
+
+        if (! $resource->requires_confirmation) {
+            // No confirmation asked for: the grant is born pending and claimed
+            // in the same call, so activation runs through the one atomic path
+            // and the delivery listener fires exactly once here too.
+            $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
 
             ResourceRequested::dispatch($grant);
+
+            $activated = $this->activate($grant);
+
+            $grant->refresh();
+            $grant->setRelation('resource', $resource);
+            $grant->justActivated = $activated;
 
             return $grant;
         }
 
         $token = ConfirmationToken::mint();
 
-        $grant->state = GrantState::PENDING;
-        $grant->token_hash = ConfirmationToken::hash($token);
-        $grant->confirmed_at = null;
-        $this->extend($grant, $resource);
-        $grant->save();
+        $grant->forceFill([
+            'token_hash' => ConfirmationToken::hash($token),
+            'confirm_expires_at' => $this->confirmationDeadline(),
+        ])->save();
 
         $grant->plainToken = $token;
 
@@ -114,7 +137,7 @@ class GrantService
     }
 
     /**
-     * Find the pending grant a confirmation token addresses.
+     * Find the grant a confirmation token addresses.
      *
      * Looks up by hash, so an unknown token and a token for another brand are
      * the same non-answer. Returns the grant whatever state it is in — the
@@ -128,133 +151,133 @@ class GrantService
         }
 
         return Grant::query()
-            ->with('resource')
+            ->with(['resource', 'entitlement'])
             ->where('token_hash', ConfirmationToken::hash($token))
             ->first();
     }
 
     /**
-     * pending -> active, exactly once.
+     * pending -> active, exactly once. Returns whether this call was the one.
      *
-     * The guarantee is the `where state = pending` on the UPDATE, not the
-     * caller's care. Two confirmations arriving at the same instant both read
-     * a pending row; only one UPDATE reports a changed row, and only that one
-     * fires ResourceConfirmed and returns true. The loser sees the confirmed
-     * page and sends no second mail.
+     * Two statements, both conditional on the entitlement still being pending,
+     * and the order between them matters:
      *
-     * This is the idempotency the spec asks for, and it holds against a
-     * double-clicked link, a mail scanner prefetching the URL, a queue retry
-     * and two web workers at once — because it is one statement in the
-     * database, not a check-then-act in PHP.
+     * 1. Write the access window. Harmless on a pending row — pending grants
+     *    nothing whatever the dates say — and it must already be in place when
+     *    step 2 fires, because the listener that mails the download link builds
+     *    that link against this window. A link signed before the window exists
+     *    would outlive the access it was issued for.
+     * 2. Claim the row through entitlements. The conditional UPDATE inside
+     *    `claimPending()` is what makes a double-clicked link, a mail scanner
+     *    prefetching the URL, a queue retry and two web workers at once produce
+     *    one activation and one delivery mail.
+     *
+     * Step 1 carries the same `status = pending` condition, so a caller that has
+     * already lost the race writes nothing — but its affected-row count is not
+     * what decides the winner, and must not be. MySQL reports zero changed rows
+     * for an UPDATE that sets a column to the value it already holds, and the
+     * common case here is exactly that: a resource with no lifetime writes NULL
+     * over NULL. Reading a winner out of that count passes on SQLite, which
+     * counts matched rows instead, and silently activates nothing on MySQL.
+     *
+     * The winner is decided by step 2, where the status genuinely changes.
      */
     public function activate(Grant $grant): bool
     {
-        $confirmedAt = Carbon::now();
+        $entitlement = $grant->entitlement()->first();
 
-        // Activation switches the clock. Until now `expires_at` held the
-        // confirmation window — "you have three days to confirm"; from here it
-        // holds the access lifetime — "your access lasts a year", or nothing
-        // at all when the resource sets none. Leaving the confirmation
-        // deadline in place would silently expire every grant three days after
-        // it was confirmed, which is the kind of defect that only surfaces as
-        // "the download link stopped working" weeks later.
-        $resource = $grant->resource ?? Resource::query()->find($grant->resource_id);
-        $days = $resource?->grantTtlDays();
-        $expiresAt = $days === null ? null : $confirmedAt->copy()->addDays($days);
-
-        $changed = Grant::query()
-            ->whereKey($grant->getKey())
-            ->where('state', GrantState::PENDING)
-            ->update([
-                'state' => GrantState::ACTIVE,
-                'confirmed_at' => $confirmedAt,
-                'expires_at' => $expiresAt,
-                'token_hash' => null,
-                'updated_at' => $confirmedAt,
-            ]);
-
-        if ($changed !== 1) {
+        if ($entitlement === null) {
             return false;
         }
 
-        $grant->forceFill([
-            'state' => GrantState::ACTIVE,
-            'confirmed_at' => $confirmedAt,
-            'expires_at' => $expiresAt,
-            'token_hash' => null,
-        ])->syncOriginal();
+        $resource = $grant->resource ?? Resource::query()->find($grant->resource_id);
 
-        ResourceConfirmed::dispatch($grant);
+        $this->openWindow($entitlement, $resource, onlyWhilePending: true);
 
-        return true;
+        $entitlement->refresh();
+
+        return Entitlements::claimPending($entitlement);
     }
 
-    /** Withdraw access. Terminal: only the Control Panel can undo it. */
-    public function revoke(Grant $grant): Grant
+    /**
+     * Withdraw access, with a reason.
+     *
+     * The reason is not optional and not this addon's choice: entitlements
+     * refuses a blank one, on the grounds that a revocation nobody can explain
+     * six months later is a revocation whoever is on support that day undoes.
+     */
+    public function revoke(Grant $grant, string $reason): bool
     {
-        $grant->forceFill([
-            'state' => GrantState::REVOKED,
-            'revoked_at' => Carbon::now(),
-            'token_hash' => null,
-        ])->save();
+        $entitlement = $grant->entitlement()->first();
 
-        return $grant;
+        if ($entitlement === null) {
+            return false;
+        }
+
+        // The confirmation secret goes with the access. A pending link that
+        // survived a revocation would activate the grant again on the next
+        // click.
+        $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
+
+        return Entitlements::revoke($entitlement, $reason);
     }
 
-    /** Put a revoked or expired grant back into service, without re-confirming. */
+    /**
+     * Put a revoked or expired grant back into service, without re-confirming.
+     *
+     * The address is already proven. Making somebody confirm twice because an
+     * editor changed their mind is a support problem dressed up as diligence.
+     */
     public function reinstate(Grant $grant): Grant
     {
-        $grant->forceFill([
-            'state' => GrantState::ACTIVE,
-            'revoked_at' => null,
-            'confirmed_at' => $grant->confirmed_at ?? Carbon::now(),
-        ]);
+        $entitlement = $grant->entitlement()->first();
 
-        if ($grant->hasLapsed()) {
-            $this->extend($grant, $grant->resource);
+        if ($entitlement === null) {
+            return $grant;
         }
 
-        $grant->save();
+        if ($entitlement->state() === EntitlementState::Revoked) {
+            Entitlements::restore($entitlement);
+            $entitlement->refresh();
+        }
 
-        return $grant;
+        if ($entitlement->state() === EntitlementState::Pending) {
+            // Never confirmed at all: reinstating means confirming on the
+            // reader's behalf, which is the same atomic path the link takes.
+            $this->activate($grant);
+
+            return $grant->refresh();
+        }
+
+        if (! $entitlement->state()->grantsAccess()) {
+            // Restored into a window that had meanwhile closed, or expired
+            // without ever being revoked. Either way it needs a fresh window,
+            // not a fresh confirmation.
+            $this->openWindow($entitlement, $grant->resource);
+        }
+
+        return $grant->refresh();
     }
 
     /**
-     * Write the `expired` state onto rows whose date has passed.
+     * Clear confirmation secrets whose window has closed.
      *
-     * Housekeeping, not a gate. Nothing depends on this having run —
-     * Grant::isRedeemable() reads the date, not the column — so a site that
-     * never schedules the sweep is safe, only untidy.
+     * All that is left of the old sweep. Expiry of *access* is derived from the
+     * clock by entitlements and needs no housekeeping at all; what still ages
+     * is the token, and a hash that can no longer be redeemed has no reason to
+     * stay in the database.
+     *
+     * Nothing gates on this having run: `findByToken()` hands the grant back
+     * and the controller checks the deadline, so a site that never schedules
+     * the sweep is safe and merely untidy.
      */
-    public function sweepExpired(): int
+    public function sweepExpiredTokens(): int
     {
         return Grant::query()
-            ->whereIn('state', [GrantState::PENDING, GrantState::ACTIVE])
-            ->whereNotNull('expires_at')
-            ->where('expires_at', '<', Carbon::now())
-            ->update(['state' => GrantState::EXPIRED, 'token_hash' => null]);
-    }
-
-    /**
-     * Set the grant's own lifetime.
-     *
-     * A pending grant lives for the confirmation window; once active it lives
-     * for the resource's grant lifetime, or forever when none is set. The two
-     * are different clocks on purpose: "you have three days to confirm" and
-     * "your access lasts a year" are different promises.
-     */
-    protected function extend(Grant $grant, ?Resource $resource): void
-    {
-        if ($grant->state === GrantState::ACTIVE) {
-            $days = $resource?->grantTtlDays();
-            $grant->expires_at = $days === null ? null : Carbon::now()->addDays($days);
-
-            return;
-        }
-
-        $hours = (int) config('lead-magnets.requests.confirmation_ttl_hours', 72);
-
-        $grant->expires_at = $hours > 0 ? Carbon::now()->addHours($hours) : null;
+            ->whereNotNull('token_hash')
+            ->whereNotNull('confirm_expires_at')
+            ->where('confirm_expires_at', '<', Carbon::now())
+            ->update(['token_hash' => null]);
     }
 
     /**
@@ -285,5 +308,96 @@ class GrantService
                     : null,
             ]);
         });
+    }
+
+    // --------------------------------------------------------------- internals
+
+    /**
+     * The entitlement behind a grant, created pending if it has none yet.
+     *
+     * `grantPending()` is called with no expiry at all. That is the structural
+     * half of the fix described in the class docblock: a pending entitlement
+     * has no access window, so there is nothing for activation to overwrite and
+     * no way for the confirmation deadline to leak into the access period.
+     */
+    protected function entitlementFor(Grant $grant, Resource $resource): Entitlement
+    {
+        if ($grant->entitlement_id !== null) {
+            $existing = $grant->entitlement()->first();
+
+            if ($existing !== null) {
+                $grant->setRelation('entitlement', $existing);
+
+                return $existing;
+            }
+        }
+
+        return $this->writePending($grant, $resource);
+    }
+
+    /** Open a new access period for a grant whose previous one expired. */
+    protected function reopen(Grant $grant, Resource $resource): Entitlement
+    {
+        $grant->forceFill(['attempt' => $grant->attempt + 1])->save();
+
+        return $this->writePending($grant, $resource);
+    }
+
+    protected function writePending(Grant $grant, Resource $resource): Entitlement
+    {
+        $entitlement = Entitlements::grantPending(
+            LeadMagnetSubject::for($grant->email),
+            $resource->handle,
+            LeadMagnetSubject::source(),
+            // The attempt number is the source reference, which makes the
+            // entitlements unique key mean "one grant per address, resource and
+            // access period". Absence would be the empty string, and a second
+            // period could then never be written.
+            (string) $grant->attempt,
+            null,
+            ['lead_magnet_grant_id' => $grant->id],
+        );
+
+        $grant->forceFill(['entitlement_id' => $entitlement->getKey()])->save();
+        $grant->setRelation('entitlement', $entitlement);
+
+        return $entitlement;
+    }
+
+    /**
+     * Write the access window onto the entitlement.
+     *
+     * The resource's own lifetime, or none at all when it sets none.
+     *
+     * A query-builder UPDATE rather than a model save, because the `pending`
+     * guard has to be part of the same statement — a read-then-write here is
+     * the race this whole path is built to avoid. The value is formatted by
+     * hand for the same reason: a builder UPDATE runs no casts.
+     *
+     * The affected-row count is deliberately not returned. See
+     * {@see self::activate()} for why it would be the wrong thing to trust.
+     */
+    protected function openWindow(Entitlement $entitlement, ?Resource $resource, bool $onlyWhilePending = false): void
+    {
+        $days = $resource?->grantTtlDays();
+
+        $expiresAt = $days === null
+            ? null
+            : CarbonImmutable::now('UTC')->addDays($days)->format('Y-m-d H:i:s');
+
+        $query = Entitlement::query()->whereKey($entitlement->getKey());
+
+        if ($onlyWhilePending) {
+            $query->where('status', EntitlementState::Pending->value);
+        }
+
+        $query->update(['expires_at' => $expiresAt]);
+    }
+
+    protected function confirmationDeadline(): ?Carbon
+    {
+        $hours = (int) config('lead-magnets.requests.confirmation_ttl_hours', 72);
+
+        return $hours > 0 ? Carbon::now()->addHours($hours) : null;
     }
 }

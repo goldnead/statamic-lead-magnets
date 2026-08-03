@@ -36,7 +36,8 @@ abstract class GrantEvent
             'grant_id' => $this->grant->id,
             'email' => $this->grant->email,
             'contact_id' => $this->grant->contact_id,
-            'state' => $this->grant->state,
+            'state' => $this->grant->stateValue(),
+            'entitlement_id' => $this->grant->entitlement_id,
             'download_count' => $this->grant->download_count,
             'brand_id' => $this->grant->brand_id,
             'resource' => [

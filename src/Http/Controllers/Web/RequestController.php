@@ -2,7 +2,7 @@
 
 namespace Goldnead\LeadMagnets\Http\Controllers\Web;
 
-use Goldnead\LeadMagnets\GrantState;
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Resource;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class RequestController extends Controller
 
         // A filled honeypot gets a believable success and nothing else.
         if ($honeypot !== '' && $request->filled($honeypot)) {
-            return $this->respond($request, GrantState::PENDING);
+            return $this->respond($request, EntitlementState::Pending->value);
         }
 
         $data = $request->validate([
@@ -39,7 +39,7 @@ class RequestController extends Controller
             'referer' => substr((string) $request->headers->get('referer'), 0, 255) ?: null,
         ]);
 
-        return $this->respond($request, $grant->state);
+        return $this->respond($request, $grant->stateValue());
     }
 
     protected function respond(Request $request, string $state)

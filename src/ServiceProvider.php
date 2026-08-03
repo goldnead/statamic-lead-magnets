@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets;
 
+use Goldnead\LeadMagnets\Console\MigrateGrantsCommand;
 use Goldnead\LeadMagnets\Console\SweepGrantsCommand;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Illuminate\Console\Scheduling\Schedule;
@@ -43,6 +44,7 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $commands = [
         SweepGrantsCommand::class,
+        MigrateGrantsCommand::class,
     ];
 
     public function register(): void

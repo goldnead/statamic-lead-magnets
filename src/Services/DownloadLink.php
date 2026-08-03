@@ -35,8 +35,14 @@ class DownloadLink
         // 7-day link handed out on the last day of a grant would outlive the
         // access it grants — the controller would refuse it anyway, but a
         // link that is valid and refused is the worst of both.
-        if ($grant->expires_at !== null && $grant->expires_at->lt($expiresAt)) {
-            $expiresAt = $grant->expires_at;
+        //
+        // Read from the entitlement, and from whichever of its two dates is
+        // actually holding the door open: a grant inside a grace period has an
+        // `expires_at` in the past and access all the same.
+        $endsAt = $grant->accessEndsAt();
+
+        if ($endsAt !== null && $endsAt->lt($expiresAt)) {
+            $expiresAt = Carbon::instance($endsAt);
         }
 
         return URL::temporarySignedRoute(

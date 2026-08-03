@@ -6,6 +6,7 @@ use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Services\DeliveryService;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Illuminate\Http\Request;
+use Statamic\Facades\User;
 
 /**
  * The three things an editor does to an existing grant.
@@ -16,14 +17,35 @@ use Illuminate\Http\Request;
  */
 class GrantController extends Controller
 {
+    /**
+     * Withdraw access.
+     *
+     * Entitlements refuses a revocation without a reason, and it is right to:
+     * "revoked, reason: (blank)" six months later gets overturned by whoever is
+     * on support that day. An editor may type one; when they do not, the fallback
+     * still records what actually happened and who did it, which is more than a
+     * blank ever would.
+     */
     public function revoke(Request $request, int $grant, GrantService $grants)
     {
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
-        $record = Grant::query()->find($grant);
+        $record = Grant::query()->with('entitlement')->find($grant);
         abort_if($record === null, 404);
 
-        $grants->revoke($record);
+        // `validate()` omits a nullable key that was not sent at all, so this
+        // reads with `??` rather than indexing straight into the result.
+        $validated = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+
+        $reason = trim((string) ($validated['reason'] ?? ''));
+
+        if ($reason === '') {
+            $reason = __('lead-magnets::grants.revoked_reason_default', [
+                'user' => (string) (User::current()?->email() ?? '—'),
+            ]);
+        }
+
+        $grants->revoke($record, $reason);
 
         return back()->with('success', __('lead-magnets::grants.revoked'));
     }
@@ -32,7 +54,7 @@ class GrantController extends Controller
     {
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
-        $record = Grant::query()->with('resource')->find($grant);
+        $record = Grant::query()->with(['resource', 'entitlement'])->find($grant);
         abort_if($record === null, 404);
 
         $grants->reinstate($record);
@@ -52,7 +74,7 @@ class GrantController extends Controller
     {
         $this->authorizeOrFail($request, 'manage lead magnet grants');
 
-        $record = Grant::query()->with('resource')->find($grant);
+        $record = Grant::query()->with(['resource', 'entitlement'])->find($grant);
         abort_if($record === null, 404);
 
         if (! $delivery->deliver($record)) {

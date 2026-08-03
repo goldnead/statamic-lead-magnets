@@ -33,7 +33,10 @@ class DownloadController extends Controller
 {
     public function __invoke(Request $request, int $grant, GrantService $grants)
     {
-        $record = Grant::query()->find($grant);
+        // The entitlement comes with it: `isRedeemable()` asks it for the state,
+        // and a lazy load here would be a second query on the hot path of the
+        // only route that serves a file.
+        $record = Grant::query()->with('entitlement')->find($grant);
 
         abort_unless($record !== null && $record->isRedeemable(), 403);
 

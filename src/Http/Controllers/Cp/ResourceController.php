@@ -2,9 +2,11 @@
 
 namespace Goldnead\LeadMagnets\Http\Controllers\Cp;
 
-use Goldnead\LeadMagnets\GrantState;
+use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
+use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Statamic\CP\Column;
@@ -16,19 +18,17 @@ class ResourceController extends Controller
     {
         $this->authorizeOrFail($request, 'view lead magnets');
 
-        $counts = Grant::query()
-            ->selectRaw('resource_id, state, count(*) as aggregate')
-            ->groupBy('resource_id', 'state')
-            ->get()
-            ->groupBy('resource_id');
+        // Two queries for the whole page rather than one per resource. State is
+        // not a column any more, so the count runs through entitlements' own
+        // SQL projection of the resolver — the same expression the resolver
+        // applies in PHP, never a second reading of the rules.
+        $active = $this->countByResource(EntitlementState::Active);
+        $pending = $this->countByResource(EntitlementState::Pending);
 
         $rows = Resource::query()
             ->orderBy('title')
             ->get()
-            ->map(function (Resource $resource) use ($counts) {
-                $byState = $counts->get($resource->id, collect())
-                    ->pluck('aggregate', 'state');
-
+            ->map(function (Resource $resource) use ($active, $pending) {
                 return [
                     'id' => $resource->id,
                     'handle' => $resource->handle,
@@ -36,8 +36,8 @@ class ResourceController extends Controller
                     'delivery_type' => $resource->delivery_type,
                     'requires_confirmation' => $resource->requires_confirmation,
                     'published' => $resource->published,
-                    'active' => (int) $byState->get(GrantState::ACTIVE, 0),
-                    'pending' => (int) $byState->get(GrantState::PENDING, 0),
+                    'active' => (int) ($active[$resource->id] ?? 0),
+                    'pending' => (int) ($pending[$resource->id] ?? 0),
                     'show_url' => cp_route('lead-magnets.resources.show', $resource->id),
                     'edit_url' => cp_route('lead-magnets.resources.edit', $resource->id),
                     'delete_url' => cp_route('lead-magnets.resources.destroy', $resource->id),
@@ -97,12 +97,16 @@ class ResourceController extends Controller
         $record = Resource::query()->find($resource);
         abort_if($record === null, 404);
 
-        $state = (string) $request->input('state', '');
+        // An unknown filter value is dropped rather than passed to the resolver.
+        // `EntitlementState::from()` on a query string is an uncaught ValueError
+        // and a 500 for anybody who edits the URL.
+        $state = EntitlementState::tryFrom((string) $request->input('state', ''));
 
         $page = Grant::query()
             ->where('resource_id', $record->id)
+            ->with('entitlement')
             ->withCount('downloads')
-            ->when($state !== '', fn ($query) => $query->where('state', $state))
+            ->when($state !== null, fn ($query) => $query->inState($state))
             ->when($request->input('search'), fn ($query, $search) => $query->where('email', 'like', '%'.$search.'%'))
             ->orderByDesc('requested_at')
             ->paginate(50)
@@ -111,11 +115,11 @@ class ResourceController extends Controller
         $grants = collect($page->items())->map(fn (Grant $grant) => [
             'id' => $grant->id,
             'email' => $grant->email,
-            'state' => $grant->state,
+            'state' => $grant->stateValue(),
             'requested_at' => $grant->requested_at?->toIso8601String(),
-            'confirmed_at' => $grant->confirmed_at?->toIso8601String(),
+            'confirmed_at' => $grant->confirmedAt()?->toIso8601String(),
             'delivered_at' => $grant->delivered_at?->toIso8601String(),
-            'expires_at' => $grant->expires_at?->toIso8601String(),
+            'expires_at' => $grant->accessEndsAt()?->toIso8601String(),
             'downloads' => $grant->downloads_count,
             'lapsed' => $grant->hasLapsed(),
             'revoke_url' => cp_route('lead-magnets.grants.revoke', $grant->id),
@@ -139,8 +143,12 @@ class ResourceController extends Controller
             ],
             'grants' => $grants,
             'columns' => $this->grantColumns(),
-            'states' => GrantState::ALL,
-            'filters' => ['state' => $state, 'search' => (string) $request->input('search', '')],
+            // All six entitlement states, not the four this addon writes. An
+            // operator can put a grant into a grace period or give it a start
+            // date from the entitlements screen, and a filter list that did not
+            // offer those would hide rows the listing shows.
+            'states' => array_map(fn (EntitlementState $case) => $case->value, EntitlementState::cases()),
+            'filters' => ['state' => $state === null ? '' : $state->value, 'search' => (string) $request->input('search', '')],
             'pagination' => [
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
@@ -201,20 +209,48 @@ class ResourceController extends Controller
         $record = Resource::query()->find($resource);
         abort_if($record === null, 404);
 
-        // Grants and their audit rows go with it. Keeping download records for
-        // a resource that no longer exists would leave an audit nobody can
-        // read, and the grant they belong to is the only thing that explains
-        // them.
+        // Grants, their audit rows and their entitlements go with it. Keeping
+        // download records for a resource that no longer exists would leave an
+        // audit nobody can read, and an entitlement for a product slug nothing
+        // answers to is access to nothing — but it still shows up in the
+        // entitlements listing as if it meant something.
+        //
+        // Only entitlements this addon wrote are removed. The `source` filter
+        // is what keeps a purchase recorded by a payment webhook, which may
+        // legitimately name the same slug, out of the deletion.
         Grant::query()->where('resource_id', $record->id)->each(function (Grant $grant) {
             $grant->downloads()->delete();
             $grant->delete();
         });
+
+        // By slug, not by the current grants' ids: a grant whose window expired
+        // and was reopened left earlier entitlements behind, and those name the
+        // same slug and would otherwise outlive the resource.
+        Entitlement::query()
+            ->where('product_slug', $record->handle)
+            ->where('source', LeadMagnetSubject::source())
+            ->delete();
 
         $record->delete();
 
         return redirect()
             ->to(cp_route('lead-magnets.resources.index'))
             ->with('success', __('lead-magnets::resources.deleted'));
+    }
+
+    /**
+     * How many grants per resource currently resolve to `$state`.
+     *
+     * @return array<int, int>
+     */
+    protected function countByResource(EntitlementState $state): array
+    {
+        return Grant::query()
+            ->inState($state)
+            ->selectRaw('resource_id, count(*) as aggregate')
+            ->groupBy('resource_id')
+            ->pluck('aggregate', 'resource_id')
+            ->all();
     }
 
     /** @return array<string, mixed> */
