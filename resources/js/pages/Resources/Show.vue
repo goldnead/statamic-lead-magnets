@@ -9,7 +9,7 @@ const props = defineProps([
     'resource',          // { id, handle, title, description, delivery_type, requires_confirmation, published }
     'grants',            // [{ id, email, state, requested_at, confirmed_at, delivered_at, downloads, lapsed, revoke_url, reinstate_url, resend_url }]
     'columns',           // Array<Column>
-    'states',            // list of the four grant states
+    'states',            // list of the six entitlement states
     'filters',           // { state, search }
     'pagination',        // { current_page, last_page, total }
     'editUrl',
@@ -22,9 +22,14 @@ const formErrors = ref({});
 
 const generalErrors = computed(() => Object.values(formErrors.value));
 
+// The six entitlement states, not the four this addon writes. An operator can
+// give a grant a start date or a grace period from the entitlements screen, and
+// a badge with no colour for those reads as a rendering bug rather than a state.
 const stateColors = {
     active: 'green',
+    grace_period: 'green',
     pending: 'default',
+    scheduled: 'default',
     revoked: 'red',
     expired: 'orange',
 };
