@@ -2,8 +2,8 @@
 
 use Goldnead\Activity\Facades\Activity;
 use Goldnead\EmailTemplates\Facades\EmailTemplates;
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\Leadhub\Facades\LeadHub;
-use Goldnead\LeadMagnets\GrantState;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\Marketing\Services\SubscriptionService;
@@ -49,7 +49,7 @@ it('runs the whole flow — request, confirm, download — on its own', function
         'resource' => 'warm_up',
     ])->assertRedirect();
 
-    expect(Grant::query()->sole()->state)->toBe(GrantState::PENDING);
+    expect(Grant::query()->with('entitlement')->sole()->state())->toBe(EntitlementState::Pending);
 
     // 2. Confirm. Its own mail, carrying its own token.
     $token = tokenFromLastConfirmationMail();
@@ -58,7 +58,7 @@ it('runs the whole flow — request, confirm, download — on its own', function
 
     $this->get(route('lead-magnets.confirm', ['token' => $token]))->assertOk();
 
-    expect(Grant::query()->sole()->state)->toBe(GrantState::ACTIVE);
+    expect(Grant::query()->with('entitlement')->sole()->state())->toBe(EntitlementState::Active);
 
     // 3. Download. Its own signed route, its own audit row.
     $url = downloadUrlFromLastDeliveryMail();

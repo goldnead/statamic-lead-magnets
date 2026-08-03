@@ -1,7 +1,7 @@
 <?php
 
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Events\ResourceDownloaded;
-use Goldnead\LeadMagnets\GrantState;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\DownloadLink;
@@ -25,7 +25,7 @@ function activeGrant(array $resourceAttributes = []): Grant
         'resource' => $resource->handle,
     ]);
 
-    return Grant::query()->with('resource')->sole();
+    return Grant::query()->with(['resource', 'entitlement'])->sole();
 }
 
 it('serves the file over a valid signed link and audits it', function () {
@@ -73,12 +73,7 @@ it('refuses an expired link', function () {
 it('refuses a link whose grant id was edited', function () {
     $first = activeGrant();
 
-    $second = Grant::query()->create([
-        'resource_id' => $first->resource_id,
-        'email' => 'someone-else@example.com',
-        'state' => GrantState::ACTIVE,
-        'confirmed_at' => now(),
-    ]);
+    $second = makeGrant($first->resource, 'someone-else@example.com');
 
     $url = app(DownloadLink::class)->for($first);
 
@@ -128,7 +123,7 @@ it('refuses a link for a revoked grant, even though the signature still verifies
 
     $url = app(DownloadLink::class)->for($grant);
 
-    app(GrantService::class)->revoke($grant);
+    app(GrantService::class)->revoke($grant, 'Refunded');
 
     // The signature is untouched and valid. Access is what changed, and the
     // signature was never a statement about access.
@@ -147,7 +142,7 @@ it('refuses a link for a pending grant', function () {
 
     $grant = Grant::query()->with('resource')->sole();
 
-    expect($grant->state)->toBe(GrantState::PENDING);
+    expect($grant->state())->toBe(EntitlementState::Pending);
 
     $this->get(app(DownloadLink::class)->for($grant))->assertForbidden();
 });
@@ -164,16 +159,20 @@ it('refuses once the download cap is reached', function () {
     expect(Grant::query()->sole()->download_count)->toBe(2);
 });
 
-it('refuses once the grant itself has lapsed, without waiting for the sweep', function () {
+it('refuses once the grant itself has lapsed, with nothing having run in between', function () {
     $grant = activeGrant(['grant_ttl_days' => 1]);
 
     $url = app(DownloadLink::class)->for($grant);
 
     Carbon::setTestNow(Carbon::now()->addDays(2));
 
-    // The state column still says `active` — nothing has swept it — and the
-    // link is refused anyway, because the gate reads the date.
-    expect(Grant::query()->sole()->state)->toBe(GrantState::ACTIVE);
+    $lapsed = Grant::query()->with('entitlement')->sole();
+
+    // No command ran, no job, no request. The stored status is still `active`
+    // and the state is Expired all the same, because entitlements derives it
+    // from the clock rather than from something having swept it.
+    expect($lapsed->entitlement->status)->toBe(EntitlementState::Active->value)
+        ->and($lapsed->state())->toBe(EntitlementState::Expired);
 
     $this->get($url)->assertForbidden();
 
@@ -187,7 +186,7 @@ it('never signs a link that outlives the access it grants', function () {
 
     preg_match('/expires=(\d+)/', $url, $matches);
 
-    expect((int) $matches[1])->toBeLessThanOrEqual($grant->fresh()->expires_at->timestamp);
+    expect((int) $matches[1])->toBeLessThanOrEqual($grant->fresh()->load('entitlement')->accessEndsAt()->timestamp);
 });
 
 it('audits and forwards a link resource without ever serving a file', function () {

@@ -1,6 +1,7 @@
 <?php
 
-use Goldnead\LeadMagnets\GrantState;
+use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Models\Download;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
@@ -19,9 +20,9 @@ beforeEach(function () {
 it('lists resources with the counts an editor came for', function () {
     $resource = makeResource();
 
-    Grant::query()->create(['resource_id' => $resource->id, 'email' => 'a@example.com', 'state' => GrantState::ACTIVE]);
-    Grant::query()->create(['resource_id' => $resource->id, 'email' => 'b@example.com', 'state' => GrantState::PENDING]);
-    Grant::query()->create(['resource_id' => $resource->id, 'email' => 'c@example.com', 'state' => GrantState::REVOKED]);
+    makeGrant($resource, 'a@example.com', EntitlementState::Active);
+    makeGrant($resource, 'b@example.com', EntitlementState::Pending);
+    makeGrant($resource, 'c@example.com', EntitlementState::Revoked);
 
     $this->get(cp_route('lead-magnets.resources.index'))
         ->assertOk()
@@ -104,11 +105,7 @@ it('clears the other delivery mode when the type changes', function () {
 it('takes the grants and the download audit with the resource', function () {
     $resource = makeResource();
 
-    $grant = Grant::query()->create([
-        'resource_id' => $resource->id,
-        'email' => 'reader@example.com',
-        'state' => GrantState::ACTIVE,
-    ]);
+    $grant = makeGrant($resource, 'reader@example.com');
 
     $grant->downloads()->create(['brand_id' => $grant->brand_id, 'downloaded_at' => now()]);
 
@@ -117,7 +114,10 @@ it('takes the grants and the download audit with the resource', function () {
     expect(Resource::query()->count())->toBe(0)
         ->and(Grant::query()->count())->toBe(0)
         // An audit row whose grant is gone is an audit nobody can read.
-        ->and(Download::query()->count())->toBe(0);
+        ->and(Download::query()->count())->toBe(0)
+        // And the entitlements this addon wrote for it, which would otherwise
+        // stay in the shared listing as access to a product nothing answers to.
+        ->and(Entitlement::query()->count())->toBe(0);
 });
 
 it('404s for a resource that is not there', function () {

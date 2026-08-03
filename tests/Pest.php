@@ -1,6 +1,9 @@
 <?php
 
+use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
+use Goldnead\LeadMagnets\Services\GrantService;
 use Goldnead\LeadMagnets\Tests\TestCase;
 use Illuminate\Support\Facades\Storage;
 
@@ -28,6 +31,40 @@ function makeResource(array $attributes = []): Resource
     }
 
     return Resource::query()->create($attributes);
+}
+
+/**
+ * A grant in a given state, built through the real path.
+ *
+ * There is no `state` column to seed any more, and that is the point: a fixture
+ * that wrote one would be a second writer of access state, which is exactly the
+ * arrangement this package moved away from. So the helper requests, confirms
+ * and — where asked — revokes or ages the grant, using the same calls a visitor
+ * and an editor make.
+ */
+function makeGrant(Resource $resource, string $email, EntitlementState $state = EntitlementState::Active): Grant
+{
+    $grants = app(GrantService::class);
+
+    $grant = $grants->request($resource, $email);
+
+    if ($state === EntitlementState::Pending) {
+        return Grant::query()->with('entitlement')->find($grant->id);
+    }
+
+    $grants->activate($grant);
+
+    $grant = Grant::query()->with(['entitlement', 'resource'])->find($grant->id);
+
+    if ($state === EntitlementState::Revoked) {
+        $grants->revoke($grant, 'Fixture');
+    }
+
+    if ($state === EntitlementState::Expired) {
+        $grant->entitlement->forceFill(['expires_at' => now()->subDay()])->save();
+    }
+
+    return Grant::query()->with(['entitlement', 'resource'])->find($grant->id);
 }
 
 /**

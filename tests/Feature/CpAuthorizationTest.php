@@ -24,7 +24,6 @@
  * thing.
  */
 
-use Goldnead\LeadMagnets\Models\Grant;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Statamic\Facades\User;
@@ -174,11 +173,7 @@ it('separates managing resources from managing somebody else\'s access', functio
 
     $resource = makeResource();
 
-    $grant = Grant::query()->create([
-        'resource_id' => $resource->id,
-        'email' => 'reader@example.com',
-        'state' => 'active',
-    ]);
+    $grant = makeGrant($resource, 'reader@example.com');
 
     $this->get(cp_route('lead-magnets.resources.edit', $resource->id))->assertOk();
 
@@ -192,11 +187,7 @@ it('never hands the file location to the browser', function () {
 
     $resource = makeResource(['file_disk' => 'a-private-disk', 'file_path' => 'secret/place.txt']);
 
-    Grant::query()->create([
-        'resource_id' => $resource->id,
-        'email' => 'reader@example.com',
-        'state' => 'active',
-    ]);
+    makeGrant($resource, 'reader@example.com');
 
     // The show screen renders a title, a handle and the access list. It has no
     // reason to know where the file lives, and the page source of an Inertia

@@ -1,7 +1,7 @@
 <?php
 
 use Goldnead\BrandContext\Models\Brand;
-use Goldnead\LeadMagnets\GrantState;
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\DownloadLink;
@@ -84,7 +84,7 @@ it('derives the brand from the confirmation token', function () {
 
     $this->get(route('lead-magnets.confirm', ['token' => $token]))->assertOk();
 
-    expect(Grant::query()->withoutGlobalScopes()->sole()->state)->toBe(GrantState::ACTIVE);
+    expect(Grant::query()->withoutGlobalScopes()->with('entitlement')->sole()->state())->toBe(EntitlementState::Active);
 });
 
 it('derives the brand from the grant on the download route', function () {

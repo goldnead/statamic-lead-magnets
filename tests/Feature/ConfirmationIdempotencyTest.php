@@ -1,7 +1,7 @@
 <?php
 
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Events\ResourceConfirmed;
-use Goldnead\LeadMagnets\GrantState;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Illuminate\Support\Carbon;
@@ -39,9 +39,9 @@ it('activates once and delivers once when the same confirmation arrives twice', 
     $this->get(route('lead-magnets.confirm', ['token' => $token]))->assertNotFound();
     $this->get(route('lead-magnets.confirm', ['token' => $token]))->assertNotFound();
 
-    $grant = Grant::query()->sole();
+    $grant = Grant::query()->with('entitlement')->sole();
 
-    expect($grant->state)->toBe(GrantState::ACTIVE)
+    expect($grant->state())->toBe(EntitlementState::Active)
         // The token was consumed, so the link cannot be replayed at all.
         ->and($grant->token_hash)->toBeNull();
 
@@ -80,7 +80,7 @@ it('a second request for an already confirmed grant does not re-confirm it', fun
 
     Event::assertDispatchedTimes(ResourceConfirmed::class, 1);
 
-    $confirmedAt = Grant::query()->sole()->confirmed_at;
+    $confirmedAt = Grant::query()->with('entitlement')->sole()->confirmedAt();
 
     Carbon::setTestNow(Carbon::now()->addMinutes(5));
 
@@ -89,10 +89,10 @@ it('a second request for an already confirmed grant does not re-confirm it', fun
         'resource' => 'warm_up',
     ]);
 
-    $grant = Grant::query()->sole();
+    $grant = Grant::query()->with('entitlement')->sole();
 
-    expect($grant->state)->toBe(GrantState::ACTIVE)
-        ->and($grant->confirmed_at->timestamp)->toBe($confirmedAt->timestamp)
+    expect($grant->state())->toBe(EntitlementState::Active)
+        ->and($grant->confirmedAt()->timestamp)->toBe($confirmedAt->timestamp)
         // No new confirmation token: asking again for something already
         // confirmed re-sends the file, it does not restart the consent flow.
         ->and($grant->token_hash)->toBeNull();
@@ -122,7 +122,7 @@ it('does not confirm a token whose window has closed', function () {
         ->assertOk()
         ->assertSee('data-state="lapsed"', false);
 
-    expect(Grant::query()->sole()->state)->toBe(GrantState::PENDING);
+    expect(Grant::query()->with('entitlement')->sole()->state())->toBe(EntitlementState::Pending);
 
     Event::assertNotDispatched(ResourceConfirmed::class);
 

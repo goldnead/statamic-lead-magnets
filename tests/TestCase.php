@@ -52,8 +52,29 @@ abstract class TestCase extends AddonTestCase
     {
         return [
             \Goldnead\BrandContext\ServiceProvider::class,
+            \Goldnead\IdentityContracts\ServiceProvider::class,
+            \Goldnead\Entitlements\ServiceProvider::class,
             ...parent::getPackageProviders($app),
         ];
+    }
+
+    /**
+     * Load the entitlements migrations by hand.
+     *
+     * `AddonTestCase` builds a Statamic addon manifest containing exactly one
+     * entry — the addon under test — and `AddonServiceProvider::boot()` returns
+     * early for any provider that is not in it. Entitlements is a Composer
+     * dependency here, not the addon under test, so its `bootAddon()` never
+     * runs and its migrations are never registered. The first query against the
+     * table then fails with "no such table", which reads as a bug in this
+     * package rather than as a missing boot.
+     */
+    protected function defineDatabaseMigrations(): void
+    {
+        $this->loadMigrationsFrom(
+            dirname((new \ReflectionClass(\Goldnead\Entitlements\ServiceProvider::class))->getFileName())
+            .'/../database/migrations'
+        );
     }
 
     protected function defineEnvironment($app): void
