@@ -18,6 +18,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Entitlements
+    |--------------------------------------------------------------------------
+    |
+    | Access state lives in goldnead/statamic-entitlements. These two values say
+    | how this addon's grants appear there, and both are install-time settings:
+    | changing either one after grants exist orphans every entitlement written
+    | under the old value, because both are part of that table's unique key.
+    |
+    | `source` is what marks an entitlement as this addon's. The delivery
+    | listener and the resource-deletion sweep both filter on it, so a purchase
+    | recorded by a payment webhook against the same product slug is left alone.
+    |
+    | `subject_type` is the morph type a lead-magnet contact is stored under. A
+    | host application that already models contacts and wants its own grants and
+    | these to land on the same subject points this at its own morph alias.
+    |
+    */
+
+    'entitlements' => [
+        'source' => 'lead_magnet',
+        'subject_type' => 'lead-magnet-contact',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Delivery
     |--------------------------------------------------------------------------
     |
