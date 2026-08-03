@@ -22,4 +22,7 @@ return [
     'resent' => 'A fresh download link is on its way.',
     'resend_refused' => 'This access cannot be delivered: it is not active, it has lapsed, it is over its download limit, or the address is suppressed.',
     'empty' => 'Nobody has asked for this resource yet.',
+    'scheduled' => 'Scheduled',
+    'grace_period' => 'Grace period',
+    'revoked_reason_default' => 'Revoked in the Control Panel by :user.',
 ];

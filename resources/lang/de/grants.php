@@ -22,4 +22,7 @@ return [
     'resent' => 'Ein frischer Download-Link ist unterwegs.',
     'resend_refused' => 'Dieser Zugang lässt sich nicht ausliefern: nicht aktiv, abgelaufen, Download-Limit erreicht, oder die Adresse ist gesperrt.',
     'empty' => 'Diese Ressource hat noch niemand angefragt.',
+    'scheduled' => 'Geplant',
+    'grace_period' => 'Kulanzfrist',
+    'revoked_reason_default' => 'Im Control Panel entzogen von :user.',
 ];
