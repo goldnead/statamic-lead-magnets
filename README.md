@@ -14,8 +14,8 @@ Statamic 6 only. Laravel 12.40+ / 13.
   description, publish state and per-resource delivery settings.
 - **A request endpoint** for your own form, with a honeypot and a throttle.
 - **Optional double opt-in**, switchable per resource.
-- **Grant state** — `pending → active`, plus `revoked` and `expired`, one grant
-  per address per resource.
+- **Access state from `goldnead/statamic-entitlements`** — one state machine for
+  the whole platform, one grant per address per resource per access period.
 - **Signed download links** — time-boxed, optionally limited by download count,
   and never longer-lived than the access they belong to.
 - **A download audit** — who, when, how often, from which request.
@@ -38,12 +38,16 @@ package does not make), follow-up sequences (they belong in
 | PHP | 8.2+ |
 | Laravel | 12.40+ or 13 |
 | Statamic | 6.0+ |
-| Hard dependency | `goldnead/statamic-brand-context` |
+| Hard dependencies | `goldnead/statamic-brand-context`, `goldnead/statamic-entitlements` |
 
-Everything else is optional. **The addon is fully functional with no sibling
-addon installed**: it sends its own confirmation mail, holds its own grant
-state and serves its own downloads. The test suite runs with none of them
-present, which is what makes that a claim rather than a hope.
+Everything else is optional. **The addon is fully functional with no *optional*
+sibling installed**: it sends its own confirmation mail and serves its own
+downloads. The test suite runs with none of them present, which is what makes
+that a claim rather than a hope.
+
+Entitlements is the exception and it is a hard requirement, not a bridge. Access
+state is not something this addon can half-have — an install where it was absent
+would have no way to answer "may this person download this file".
 
 | Optional addon | What it adds |
 |---|---|
@@ -116,8 +120,16 @@ $resource = LeadMagnets::resource('warm_up');
 
 $grant = LeadMagnets::request($resource, 'reader@example.com', ['source' => 'api']);
 
-$grant->state;              // 'pending' or 'active'
+$grant->state();            // Goldnead\Entitlements\Enums\EntitlementState
+$grant->isRedeemable();     // the one question the download gate asks
 LeadMagnets::downloadUrl($grant);
+
+// Access questions go to entitlements, which answers them for every addon on
+// the platform. There is deliberately no second facade over the same data.
+use Goldnead\Entitlements\Facades\Entitlements;
+use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
+
+Entitlements::allows(LeadMagnetSubject::for('reader@example.com'), 'warm_up');
 ```
 
 ### Listening to events
@@ -145,28 +157,87 @@ The prefix is configurable under `lead-magnets.routes.prefix`.
 
 ---
 
-## Grant state — a documented deviation from the platform architecture
+## Grant state lives in `goldnead/statamic-entitlements`
 
-The platform's target architecture (`SYSTEM/statamic-platform-addon-ecosystem.md`
-§4.4) puts grants in a package of their own, `goldnead/statamic-entitlements`,
-and has every consumer read them from there. **That package does not exist.** It
-is deferred until a second consumer justifies designing the shared abstraction.
+Version 1.x carried its own four-state lifecycle — `pending`, `active`,
+`revoked`, `expired` — because the platform's entitlements package did not exist
+yet. It does now, and 2.0 gives the state back.
 
-So this addon carries its own grant state — `pending`, `active`, `revoked`,
-`expired`, per contact and resource, with a delivery and download audit. That is
-a deliberate deviation, taken with open eyes:
+### The six states, and which of them this addon writes
 
-- **The cost.** When entitlements arrives there will be two grant models and a
-  migration between them.
-- **The benefit.** The addon exists, and it supplies exactly the second consumer
-  entitlements is waiting for.
-- **The alternative** — build entitlements first — inverts the order and designs
-  the abstraction before the second real use case, which §10 of the same document
-  explicitly advises against.
+Entitlements has six. This addon **writes three** and **reads all six**.
 
-If and when entitlements ships, the connection is an optional bridge, not a
-Composer requirement. Nothing in this package's public API names an entitlement,
-so that migration is an internal one.
+| State | Written by lead-magnets | What it means here |
+|---|---|---|
+| `pending` | yes | a request is parked, waiting for the double opt-in |
+| `active` | yes | the address is proven and the file may be fetched |
+| `revoked` | yes | an editor withdrew access, with a recorded reason |
+| `expired` | **no** | derived from `expires_at` by the resolver, never stored |
+| `scheduled` | **no** | a start date in the future; grants nothing yet |
+| `grace_period` | **no** | past the expiry, still allowed |
+
+`expired` is not written by anybody, and that is a fix rather than an omission.
+In 1.x it was a column somebody had to set — a request, a download attempt, the
+hourly sweep — so a grant could sit past its date still saying `active` until
+something noticed. The resolver reads the clock, so there is nothing to sweep and
+nothing that can be stale. The sweep command survives with a much smaller job:
+clearing confirmation tokens whose window has closed.
+
+`scheduled` and `grace_period` have no writer here either, because nothing in a
+lead-magnet flow produces them. They are read all the same, because an operator
+can produce both from the entitlements Control Panel, and a download gate that
+did not understand them would be wrong in both directions — serving a grant that
+has not started, refusing one inside its grace period. Both are covered by tests.
+
+### What crossed over and what did not
+
+Only the access state. Signed links, the download cap, the audit rows, the
+confirmation secret and both mails stayed here. Entitlements sends nothing at
+all, by design: it decides access and announces it, and the delivery mail hangs
+off `EntitlementGranted` in `src/Listeners/DeliverConfirmedResource.php`.
+
+### How a grant appears in entitlements
+
+| Column | Value |
+|---|---|
+| `subject_type` | `lead-magnet-contact` (configurable) |
+| `subject_id` | SHA-256 of the normalised address |
+| `product_slug` | the resource handle |
+| `source` | `lead_magnet` (configurable) |
+| `source_ref` | the access period number, starting at `1` |
+
+The address is hashed rather than stored. `subject_id` is 64 characters and an
+email may be 254, so storing it raw would truncate — and two addresses sharing a
+long prefix would then collide on an index that decides access. The readable
+list is this addon's own screen, which has the address; the entitlements listing
+shows an opaque key for these rows.
+
+`source_ref` counts access periods rather than being empty. A reader whose year
+of access ran out and who asks again gets a **second** entitlement, not a rewrite
+of the first: the expired row is a true record of a period that happened, and
+entitlements answers over all of a subject's grants as an OR, so a second row is
+exactly the shape it expects.
+
+### Upgrading from 1.x
+
+Two steps, in this order, because the second migration refuses to destroy state
+that has not been carried across yet:
+
+```bash
+php artisan migrate                              # adds the new columns, then aborts
+php artisan lead-magnets:migrate-grants --dry-run
+php artisan lead-magnets:migrate-grants
+php artisan migrate                              # drops the legacy columns
+```
+
+The command is idempotent, brand-aware and mails nobody: historical rows are
+written straight to their final state, so `EntitlementGranted` carries no
+previous state and the delivery listener stays quiet. A fresh install never sees
+any of this — there are no rows, and both migrations run inside one `migrate`.
+
+Entitlements' own `entitlements:announce` fires `EntitlementExpired` for grants
+whose window has closed. Scheduling it is the host application's job: it is
+shared by every consumer of the package, not owned by this addon.
 
 ---
 
@@ -212,9 +283,19 @@ See `config/lead-magnets.php`. The settings worth knowing:
 | `requests.confirmation_ttl_hours` | `72` | How long a confirmation link lives |
 | `requests.honeypot` | `website` | Field name a bot fills and a human never does |
 | `requests.throttle` | `10,1` | Requests per minute per client |
+| `entitlements.source` | `lead_magnet` | Marks an entitlement as this addon's |
+| `entitlements.subject_type` | `lead-magnet-contact` | Morph type of a lead-magnet contact |
 | `integrations.*` | `true` | Turn an installed sibling's bridge off |
 
-Each of these can be overridden per resource in the Control Panel.
+Most of these can be overridden per resource in the Control Panel. The two
+`entitlements` keys cannot, and are install-time settings: both are part of the
+entitlements unique key, so changing either after grants exist orphans every row
+written under the old value.
+
+`delivery.grant_ttl_days` and `requests.confirmation_ttl_hours` look alike and
+are not. The first is how long access lasts once the address is proven; the
+second is how long the visitor has to prove it. They are stored in two different
+columns on two different rows for exactly that reason.
 
 ---
 
