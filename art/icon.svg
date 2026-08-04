@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D97706"/>
+      <stop offset="1" stop-color="#7C2D12"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#431407" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <!-- rounded square background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- a horseshoe magnet. The package is named for the thing, and no other icon
+       in the suite is remotely this shape, which matters more at 32px than any
+       cleverer depiction of gated file delivery would. -->
+  <g filter="url(#sh)">
+    <path d="M128 380 V256 A128 128 0 0 1 384 256 V380 H296 V256 A40 40 0 0 0 216 256 V380 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- the poles -->
+  <rect x="128" y="306" width="88" height="40" fill="url(#bg)"/>
+  <rect x="296" y="306" width="88" height="40" fill="url(#bg)"/>
+</svg>
