@@ -2,7 +2,7 @@
     "name": "goldnead/statamic-lead-magnets",
     "description": "Confirm-first resource delivery: a visitor asks for a file, confirms the address, and the download link is signed, time-boxed and audited.",
     "type": "statamic-addon",
-    "license": "MIT",
+    "license": "proprietary",
     "keywords": [
         "statamic",
         "statamic-addon",
