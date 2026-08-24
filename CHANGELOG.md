@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.1.0 — 2026-08-24
+
+### Fixed — beide Mails gingen unter der Identität des Hosts raus
+
+`DeliveryService` rief `Mail::to()`, also den prozessweiten Vorgabe-Mailer.
+Auf einem Host mit mehreren Marken heißt das: die Bestätigung und die
+Auslieferung von Marke A gehen über das Relay von Marke B. Das Relay lehnt ab,
+weil die Domain dort nicht verifiziert ist — oder es geht durch, und der Leser
+bekommt Post von einem Absender, von dem er nie gehört hat.
+
+Das wiegt hier schwerer als anderswo: **beide Mails gehen an jemanden aus der
+Öffentlichkeit, der gerade seine Adresse hergegeben hat.**
+
+Beide Wege gehen jetzt durch `Sending\BrandMailer`, dieselbe Tür wie in
+marketing, notifications, preference-center, automations, leadhub und
+webhook-manager. Der Vertrag steht in `statamic-brand-context` ^1.8.
+
+**Für Ein-Marken-Installationen ändert sich nichts.**
+
+**Neu:** verweigert die Marken-Identität, wird nicht gesendet und der Grund
+landet am Grant (`delivery_sender_refused` / `confirmation_sender_refused`).
+„Die Mail kam nie an" hat damit eine Ursache statt ein Rätsel zu sein.
+
+
 All notable changes to `goldnead/statamic-lead-magnets` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).

@@ -8,8 +8,8 @@ use Goldnead\LeadMagnets\Integrations\SuppressionBridge;
 use Goldnead\LeadMagnets\Mail\ConfirmationMail;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Everything that leaves the building by mail.
@@ -55,12 +55,26 @@ class DeliveryService
             $this->variables($grant) + ['confirm_url' => $url],
         );
 
-        Mail::to($grant->email)->send(new ConfirmationMail(
+        // Through the brand mailer, not Mail::to(): both mails here go to a
+        // member of the public who just handed over an address, and one that
+        // arrives under another brand's name asks them to trust a sender they
+        // never heard of. On a multi-brand host the process-wide default is
+        // whichever brand booted first.
+        $sent = app(BrandMailer::class)->send(null, $grant->email, null, new ConfirmationMail(
             $grant,
             $url,
             $rendered['html'] ?? null,
             $rendered['subject'] ?? null,
         ));
+
+        if (! $sent) {
+            // The refusal and its reason are already in the log. Recording it on
+            // the grant is what makes it answerable later: "they never got the
+            // mail" has a cause attached instead of being a mystery.
+            $this->note($grant, 'confirmation_sender_refused');
+
+            return false;
+        }
 
         return true;
     }
@@ -91,12 +105,18 @@ class DeliveryService
             $this->variables($grant) + ['download_url' => $url],
         );
 
-        Mail::to($grant->email)->send(new DeliveryMail(
+        $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
             $grant,
             $url,
             $rendered['html'] ?? null,
             $rendered['subject'] ?? null,
         ));
+
+        if (! $sent) {
+            $this->note($grant, 'delivery_sender_refused');
+
+            return false;
+        }
 
         $grant->forceFill(['delivered_at' => Carbon::now()])->save();
 

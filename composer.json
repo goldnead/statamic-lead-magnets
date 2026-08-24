@@ -23,7 +23,7 @@
     },
     "require": {
         "php": "^8.2",
-        "goldnead/statamic-brand-context": "^1.5|^1.6|^1.7",
+        "goldnead/statamic-brand-context": "^1.8",
         "goldnead/statamic-entitlements": "^1.0",
         "laravel/framework": "^12.40|^13.0",
         "pixelfear/composer-dist-plugin": "^0.1",

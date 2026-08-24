@@ -4,7 +4,10 @@ namespace Goldnead\LeadMagnets;
 
 use Goldnead\LeadMagnets\Console\MigrateGrantsCommand;
 use Goldnead\LeadMagnets\Console\SweepGrantsCommand;
+use Goldnead\LeadMagnets\Contracts\SenderIdentityResolver;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
+use Goldnead\LeadMagnets\Sending\BrandMailer;
+use Goldnead\LeadMagnets\Sending\BrandSenderIdentity;
 use Illuminate\Console\Scheduling\Schedule;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
@@ -66,6 +69,13 @@ class ServiceProvider extends AddonServiceProvider
         // Singletons, so the bridges' boot guards hold across resolutions.
         // A per-resolution bridge would re-register its listeners on every
         // container make and fire each event as many times as it was resolved.
+        // Brand-scoped sending. The contract and the mechanism live in
+        // statamic-brand-context; this package binds only its own name. The
+        // shipped implementation leaves a single-brand install sending exactly
+        // as before.
+        $this->app->singleton(SenderIdentityResolver::class, BrandSenderIdentity::class);
+        $this->app->singleton(BrandMailer::class);
+
         $this->app->singleton(SiblingBridges::class);
     }
 
