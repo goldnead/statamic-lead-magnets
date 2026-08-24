@@ -316,4 +316,4 @@ in an email address.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+Commercial license. See [LICENSE](LICENSE).
