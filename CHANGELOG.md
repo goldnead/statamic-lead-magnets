@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.0 — 2026-08-24
+## 3.1.0 — 2026-08-24
 
 ### Fixed — beide Mails gingen unter der Identität des Hosts raus
 
