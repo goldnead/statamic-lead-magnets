@@ -37,6 +37,7 @@
         "pestphp/pest-plugin-laravel": "^3.0|^4.0"
     },
     "suggest": {
+        "goldnead/statamic-insights": "Shows requests, confirmations, downloads and the confirmation rate on the Insights dashboard.",
         "goldnead/statamic-leadhub": "Turns a request into a contact and writes the resource's tags onto it when the grant activates.",
         "goldnead/statamic-marketing": "Subscribes the confirmed address to a mailing list, and lends its double-opt-in wording to the confirmation mail.",
         "goldnead/statamic-email-templates": "Lets an editor author the confirmation and delivery mails in the Control Panel instead of overriding Blade views.",

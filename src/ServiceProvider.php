@@ -5,13 +5,19 @@ namespace Goldnead\LeadMagnets;
 use Goldnead\LeadMagnets\Console\MigrateGrantsCommand;
 use Goldnead\LeadMagnets\Console\SweepGrantsCommand;
 use Goldnead\LeadMagnets\Contracts\SenderIdentityResolver;
+use Goldnead\LeadMagnets\Integrations\Insights\Confirmed;
+use Goldnead\LeadMagnets\Integrations\Insights\ConfirmRate;
+use Goldnead\LeadMagnets\Integrations\Insights\Downloads;
+use Goldnead\LeadMagnets\Integrations\Insights\Requested;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Goldnead\LeadMagnets\Sending\BrandSenderIdentity;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Log;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
+use Throwable;
 
 class ServiceProvider extends AddonServiceProvider
 {
@@ -84,6 +90,92 @@ class ServiceProvider extends AddonServiceProvider
         parent::boot();
 
         $this->registerSiblingBridges();
+        $this->registerInsightsMetrics();
+    }
+
+    /**
+     * The metric handles this addon contributes, and the classes behind them.
+     *
+     * Handle and class both, so the registry can file the class name without
+     * building anything to find out what it is called — an installation with
+     * twenty addons would otherwise construct every metric of every one of them
+     * on a request that renders none.
+     *
+     * **The handles are frozen from the moment they are registered.** They end
+     * up in saved dashboards and in URLs; renaming one is a breaking change.
+     *
+     * @var array<class-string, string>
+     */
+    protected const INSIGHTS_METRICS = [
+        Requested::class => 'lead_magnets.requested',
+        Confirmed::class => 'lead_magnets.confirmed',
+        Downloads::class => 'lead_magnets.downloads',
+        ConfirmRate::class => 'lead_magnets.confirm_rate',
+    ];
+
+    /** Set once the metrics have been handed over, so the second pass stays free. */
+    protected bool $insightsRegistered = false;
+
+    /**
+     * Offer the four figures to the analytics addon, if it is there.
+     *
+     * Queued the same way as the sibling bridges above and for the same reason:
+     * a callback queued while the application is already booting fires
+     * immediately, before the sibling whose facade this asks for has registered
+     * anything. The double queueing gives a late-registered sibling a second
+     * chance, and the guard makes the second pass free.
+     *
+     * **Nothing here throws, ever.** A missing, half-installed or mid-upgrade
+     * analytics addon must cost a few tiles on a screen nobody has open, never
+     * a delivery. The guards are the three that have each caught a real
+     * variation of "installed but not quite": the facade class may be absent,
+     * the container may refuse to build the manager, and an older release of the
+     * sibling may carry the facade without this method on it. The second of
+     * those is the one this family learned by hand — never `method_exists()` on
+     * a Facade class, which declares none of what it forwards.
+     *
+     * The metric classes name the sibling's base class in their `extends`,
+     * which is safe precisely because of the first guard: PHP loads a class when
+     * something touches it, and nothing touches these unless the facade exists.
+     * Hence `suggest` in composer.json rather than `require`.
+     */
+    protected function registerInsightsMetrics(): void
+    {
+        $attach = function (): void {
+            if ($this->insightsRegistered) {
+                return;
+            }
+
+            $facade = '\\Goldnead\\StatamicInsights\\Facades\\Insights';
+
+            if (! class_exists($facade)) {
+                return;
+            }
+
+            try {
+                $manager = $facade::getFacadeRoot();
+
+                if (! is_object($manager) || ! method_exists($manager, 'registerMetric')) {
+                    return;
+                }
+
+                foreach (self::INSIGHTS_METRICS as $class => $handle) {
+                    $manager->registerMetric($class, $handle);
+                }
+
+                $this->insightsRegistered = true;
+            } catch (Throwable $e) {
+                Log::warning('statamic-lead-magnets: the insights metrics could not be registered.', [
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        };
+
+        $this->app->booted(function () use ($attach): void {
+            $attach();
+
+            $this->app->booted($attach);
+        });
     }
 
     public function bootAddon(): void

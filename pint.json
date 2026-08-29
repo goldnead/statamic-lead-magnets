@@ -10,5 +10,8 @@
     },
     "exclude": [
         "vendor"
+    ],
+    "notName": [
+        "insights-table-metric.php"
     ]
 }

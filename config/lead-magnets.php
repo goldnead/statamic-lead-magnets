@@ -116,6 +116,11 @@ return [
         'email_templates' => true,
         'suppression' => true,
         'activity' => true,
+
+        // Offers four figures — requested, confirmed, downloads and the
+        // confirmation rate — to goldnead/statamic-insights. Off means they are
+        // not registered at all, which is different from registering a zero.
+        'insights' => true,
     ],
 
 ];

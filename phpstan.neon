@@ -18,6 +18,17 @@ parameters:
 
     treatPhpDocTypesAsCertain: false
 
+    # The analytics addon is a `suggest`, not a `require`: the metrics under
+    # src/Integrations/Insights extend its TableMetric and it is not in vendor.
+    # Scanned from the test stand-in — the same declarations, byte for byte — so
+    # those four classes are checked against the real signatures rather than
+    # falling into the blanket `class.notFound` ignore below, which exists for
+    # the bridges and would have hidden a wrong return type here. Scanned, not
+    # analysed: the file is not code this package ships.
+    scanFiles:
+        - tests/Fakes/insights-contracts.php
+        - tests/Fakes/insights-table-metric.php
+
     # The optional siblings are not installed here — that is the point of the
     # bridges, and `composer.json` requires none of them. Their classes are
     # therefore unknown to the analyser, which is correct and not a finding:
