@@ -13,6 +13,19 @@ use Goldnead\EmailTemplates\Facades\EmailTemplates;
  */
 class EmailTemplatesBridge extends Bridge
 {
+    /**
+     * The variables inserted raw into the HTML body, without escaping.
+     *
+     * Both are links this addon builds itself — a confirmation token, a signed
+     * download URL — and both are used as an `href`, where the query string's
+     * `&` must survive intact. Everything else is escaped: `email` is whatever
+     * a visitor typed into the form, and the mail carrying it goes to an
+     * address nobody has confirmed yet.
+     *
+     * @var list<string>
+     */
+    public const RAW_VARIABLES = ['confirm_url', 'download_url'];
+
     /** @return class-string */
     protected function facade(): string
     {
@@ -59,7 +72,9 @@ class EmailTemplatesBridge extends Bridge
 
             return [
                 'html' => $this->interpolate($html, $variables),
-                'subject' => $subject === null ? null : $this->interpolate($subject, $variables),
+                // A subject line is not HTML. Escaping it would put a literal
+                // `&amp;` in front of the reader instead of protecting one.
+                'subject' => $subject === null ? null : $this->interpolate($subject, $variables, escape: false),
             ];
         });
     }
@@ -91,11 +106,24 @@ class EmailTemplatesBridge extends Bridge
         return null;
     }
 
-    /** @param  array<string, string>  $variables */
-    protected function interpolate(string $body, array $variables): string
+    /**
+     * Put the variables into the template text.
+     *
+     * Values are HTML-escaped, because what goes in here is a visitor's own
+     * input and what comes out is the body of a mail. The exceptions are named
+     * in {@see self::RAW_VARIABLES}; `$escape` switches escaping off entirely
+     * for output that is not HTML, which is the subject line.
+     *
+     * @param  array<string, string>  $variables
+     */
+    protected function interpolate(string $body, array $variables, bool $escape = true): string
     {
         foreach ($variables as $key => $value) {
-            $body = str_replace(['{{ '.$key.' }}', '{{'.$key.'}}'], $value, $body);
+            $replacement = $escape && ! in_array($key, self::RAW_VARIABLES, true)
+                ? e($value)
+                : $value;
+
+            $body = str_replace(['{{ '.$key.' }}', '{{'.$key.'}}'], $replacement, $body);
         }
 
         return $body;

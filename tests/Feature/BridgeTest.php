@@ -137,6 +137,33 @@ it('uses an editor-authored mail body when email-templates has one', function ()
         ->and($mail)->toContain('Your Warm-up routine');
 });
 
+it('escapes a supplied value in the body but leaves the link and the subject alone', function () {
+    // The mail this renders goes to an address nobody has confirmed yet, and
+    // the values in it came out of the request form. Same class of defect as
+    // statamic-payments/AbandonedReminder (02.09.2026): a value carrying markup
+    // arrived as markup.
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>Hallo {{ resource_title }}: <a href="{{ download_url }}">Download</a></p>',
+        'Dein {{ resource_title }}',
+    );
+
+    $rendered = app(EmailTemplatesBridge::class)->render('lead-magnet-delivery', [
+        'resource_title' => '<script>alert(1)</script> Müller & Söhne',
+        'download_url' => 'https://example.com/d?id=7&sig=abc',
+    ]);
+
+    expect($rendered['html'])
+        // Escaped exactly once: the markup is text, the ampersand is not doubled.
+        ->toContain('Hallo &lt;script&gt;alert(1)&lt;/script&gt; Müller &amp; Söhne')
+        ->not->toContain('<script>')
+        ->not->toContain('&amp;amp;')
+        // The link is named in RAW_VARIABLES and survives its query string.
+        ->toContain('href="https://example.com/d?id=7&sig=abc"');
+
+    // The subject is not HTML.
+    expect($rendered['subject'])->toBe('Dein <script>alert(1)</script> Müller & Söhne');
+});
+
 it('falls back to its own view when the template is missing or empty', function () {
     FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate('');
 

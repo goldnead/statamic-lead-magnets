@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.3.0 — 2026-09-02
+
+### Fixed — gelieferte Werte landeten roh im HTML der Mail
+
+`EmailTemplatesBridge` setzte die Variablen mit `str_replace` in eine
+CP-Vorlage ein, ohne sie zu escapen. Beide Mails dieses Addons gehen an eine
+Adresse, die gerade erst eingetragen und noch von niemandem bestätigt wurde, und
+`{{ email }}` ist genau das, was der Besucher ins Formular geschrieben hat.
+Dieselbe Klasse Fehler wie in `statamic-payments` (`AbandonedReminder`, am
+selben Tag behoben), und dieselbe Lösung:
+
+- Werte werden beim Einsetzen in den HTML-Körper mit `e()` escaped.
+- **`EmailTemplatesBridge::RAW_VARIABLES`** nennt die Ausnahmen: `confirm_url`
+  und `download_url`. Beides sind Links, die dieses Addon selbst baut, beide
+  stehen in einem `href`, und beide tragen einen Query-String, dessen `&`
+  unversehrt bleiben muss.
+- Die **Betreffzeile** ist kein HTML und wird mit `escape: false` gefüllt; ein
+  `&amp;` im Betreff wäre sichtbarer Schaden statt Schutz.
+
+Die Vorlage selbst bleibt unangetastet — was ein Redakteur im CP an HTML
+schreibt, ist weiterhin HTML. Escaped wird nur, was von außen eingesetzt wird.
+
 ## 3.2.0 — 2026-08-29
 
 ### Neu: die Zahlen dieses Addons erscheinen in Insights
