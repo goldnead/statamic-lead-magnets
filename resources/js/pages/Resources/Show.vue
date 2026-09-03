@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { Head, router } from '@statamic/cms/inertia';
 import {
-    Header, Listing, Panel, Card, Badge, Button, DropdownItem, ConfirmationModal, Description,
+    Header, Listing, Panel, Card, Alert, Badge, Button, DropdownItem, ConfirmationModal, Description,
 } from '@statamic/cms/ui';
 
 const props = defineProps([
@@ -67,11 +67,15 @@ function formatDate(value) {
             <Button v-if="canManage" :href="editUrl" :text="__('Edit')" />
         </Header>
 
-        <Panel v-if="generalErrors.length" class="mb-4" data-lead-magnets-form-errors>
-            <div class="p-4 text-sm text-red-600 dark:text-red-400">
-                <p v-for="(message, index) in generalErrors" :key="index">{{ message }}</p>
-            </div>
-        </Panel>
+        <!-- An error banner is an `Alert`, not a red div on a bare Panel. -->
+        <Alert
+            v-for="(message, index) in generalErrors"
+            :key="index"
+            variant="error"
+            :text="message"
+            class="mb-4"
+            data-lead-magnets-form-errors
+        />
 
         <Panel :heading="__('Details')" class="mb-4">
             <Card>
@@ -133,7 +137,7 @@ function formatDate(value) {
                     <DropdownItem
                         v-if="canManageGrants && (row.state === 'revoked' || row.state === 'expired')"
                         :text="__('Reinstate access')"
-                        icon="refresh"
+                        icon="sync"
                         @click="post(row.reinstate_url)"
                     />
                     <DropdownItem
