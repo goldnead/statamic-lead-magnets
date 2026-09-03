@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.3.1 — 2026-09-03
+
+### Behoben: Fehlerbanner als `Alert`, Löschen ins Kopfmenü
+
+Drei Fehlerbanner waren ein roter `div` auf blankem grauen Panel — die Bannerkomponente des
+Control Panels ist `Alert`. Der Löschknopf trug `variant="danger"`, das Core nur im
+Bestätigungsdialog nutzt; er sitzt jetzt im `…`-Menü.
+
+Icon `refresh` gibt es nicht, jetzt `sync`. Ein unbekannter Name rendert einen leeren Kasten und
+sagt nichts dazu.
+
 ## 3.3.0 — 2026-09-02
 
 ### Fixed — gelieferte Werte landeten roh im HTML der Mail
