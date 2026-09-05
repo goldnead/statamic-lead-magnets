@@ -682,41 +682,54 @@ class InsightsMetricsTest extends TestCase
         $this->assertSame(4, (new Confirmed)->value($this->frage()));
     }
 
-    // -- The last fraction of the last second --------------------------------
+    // -- The final second of the window --------------------------------------
 
     /**
-     * A request stamped at 23:59:59.500 on the closing day is inside the period.
+     * A request stamped at 23:59:59 on the closing day is inside the period.
      *
-     * The defect these metrics stopped writing their own window over. A period's
-     * `to` is 23:59:59.999999, a binding formats a date as `Y-m-d H:i:s` and
-     * drops the fraction, and a `<=` comparison against a column that keeps
-     * milliseconds therefore threw away every row in the period's final second.
-     * Invisibly, and only where the fraction survives — which is why nobody's
-     * suite went red over it.
-     * {@see TableMetric::inPeriod()} compares
-     * `< midnight` instead, and midnight is the same instant at every precision.
+     * The half-open upper bound in {@see TableMetric::inPeriod()} is what makes
+     * this hold: it compares `< midnight`, so the whole of 23:59:59 belongs to
+     * the closing day. Restate that as `< $period->to` — the plausible
+     * simplification, since `to` already reads like the end of the day — and
+     * this row drops out of both the figure and the column.
      *
-     * The fraction is written past the model, because the cast that wrote the
-     * row formats to whole seconds and the case could not otherwise be stated.
+     * ## Why this stops at whole seconds
+     *
+     * The defect the half-open bound was written for is finer than that: a
+     * period's `to` is 23:59:59.999999, a binding formats it as `Y-m-d H:i:s`
+     * and drops the fraction, and a `<=` against a column that keeps
+     * milliseconds therefore threw away every row in the final second.
+     *
+     * That case cannot be stated on this table. `requested_at` is
+     * `$table->timestamp(...)` with no precision, which is `TIMESTAMP(0)` on
+     * MySQL — and MySQL *rounds* a fraction on the way in rather than
+     * truncating it, so a row written at `23:59:59.500` is stored as the next
+     * day's `00:00:00` and is legitimately outside the window. This test
+     * asserted that fraction until 03.09.2026 and was green only under SQLite,
+     * which keeps the string it is handed; the MySQL leg went red the day it
+     * was added. It was asserting a precision the column does not have.
+     *
+     * The sub-second guard is therefore exercised elsewhere, on a column
+     * declared with a fraction — not here, and not on `entitlements` either,
+     * whose columns are `timestamp` without precision as well. What is left to
+     * protect here is the last *second* of the window, and that is what this
+     * now says. Giving the column a fraction would restore the finer case, but
+     * that is a migration on a shipped table and a separate decision.
      */
     #[Test]
-    public function a_request_in_the_last_fraction_of_the_final_second_is_counted(): void
+    public function a_request_in_the_final_second_of_the_day_is_counted(): void
     {
         $this->warmUp = $this->resource('warm_up', 'Warm-up routine');
 
         $this->requestAt('2026-08-19 12:00:00', $this->warmUp, 'mittag@example.com');
-        $spaet = $this->requestAt('2026-08-19 20:00:00', $this->warmUp, 'kurz-vor-zwoelf@example.com');
-
-        DB::table('lead_magnet_grants')
-            ->where('id', $spaet->id)
-            ->update(['requested_at' => '2026-08-19 23:59:59.500']);
+        $this->requestAt('2026-08-19 23:59:59', $this->warmUp, 'kurz-vor-zwoelf@example.com');
 
         $tag = new MetricQuery(Period::between(
             Carbon::parse('2026-08-19')->startOfDay(),
             Carbon::parse('2026-08-19')->endOfDay(),
         ));
 
-        $this->assertSame(2, (new Requested)->value($tag), 'the request half a second before midnight is inside the day');
+        $this->assertSame(2, (new Requested)->value($tag), 'the request in the final second before midnight is inside the day');
         $this->assertSame(['2026-08-19' => 2], (new Requested)->series($tag), "and it is in that day's column, not the next one");
     }
 
