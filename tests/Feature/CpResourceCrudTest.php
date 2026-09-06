@@ -37,7 +37,7 @@ it('creates a resource and derives the handle from the title', function () {
     $this->post(cp_route('lead-magnets.resources.store'), [
         'title' => 'Warm-up routine',
         'delivery_type' => 'file',
-        'file_path' => 'warm-up.pdf',
+        'file_asset' => makeMagnetAsset('warm-up.pdf')->id(),
     ])->assertRedirect();
 
     expect(Resource::query()->sole()->handle)->toBe('warm_up_routine');
@@ -60,7 +60,7 @@ it('requires a file for a file resource and a URL for a link resource', function
     $this->post(cp_route('lead-magnets.resources.store'), [
         'title' => 'No file',
         'delivery_type' => 'file',
-    ])->assertSessionHasErrors('file_path');
+    ])->assertSessionHasErrors('file_asset');
 
     $this->post(cp_route('lead-magnets.resources.store'), [
         'title' => 'No url',
@@ -75,7 +75,7 @@ it('refuses to change a handle after the fact', function () {
         'title' => 'Renamed',
         'handle' => 'something_else',
         'delivery_type' => 'file',
-        'file_path' => 'warm-up.txt',
+        'file_asset' => makeMagnetAsset('warm-up.txt')->id(),
     ])->assertSessionHasErrors('handle');
 
     // The handle is what live forms name and what confirmed links were issued

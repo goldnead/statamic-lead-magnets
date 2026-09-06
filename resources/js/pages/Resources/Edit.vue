@@ -4,13 +4,16 @@ import { Head, router } from '@statamic/cms/inertia';
 import {
     Header, Panel, Card, Alert, Button, Dropdown, DropdownMenu, DropdownItem,
     Field, Input, Select, Textarea, Switch, ConfirmationModal,
+    PublishContainer, PublishFields, PublishFieldsProvider,
 } from '@statamic/cms/ui';
 
 const props = defineProps([
-    'resource',   // { … } | null on create
-    'storeUrl',   // POST (create only)
-    'updateUrl',  // PATCH (edit only)
-    'deleteUrl',  // DELETE (edit only)
+    'resource',    // { … } | null on create
+    'fileField',   // { blueprint, values, meta } — the assets fieldtype for the file
+    'diskWarning', // string | null — the container's disk is reachable from the web
+    'storeUrl',    // POST (create only)
+    'updateUrl',   // PATCH (edit only)
+    'deleteUrl',   // DELETE (edit only)
 ]);
 
 const isCreating = computed(() => ! props.updateUrl);
@@ -19,8 +22,6 @@ const title = ref(props.resource?.title || '');
 const handle = ref(props.resource?.handle || '');
 const description = ref(props.resource?.description || '');
 const deliveryType = ref(props.resource?.delivery_type || 'file');
-const filePath = ref(props.resource?.file_path || '');
-const fileDisk = ref(props.resource?.file_disk || '');
 const linkUrl = ref(props.resource?.link_url || '');
 const requiresConfirmation = ref(props.resource ? !! props.resource.requires_confirmation : true);
 const published = ref(props.resource ? !! props.resource.published : true);
@@ -39,6 +40,22 @@ const deliveryOptions = computed(() => [
 
 const isFile = computed(() => deliveryType.value === 'file');
 
+// Die Datei laeuft ueber Statamics eigenen `assets`-Feldtyp, gefahren durch
+// einen `PublishContainer` — der einzige Weg, auf dem ein Kernfeldtyp
+// ausserhalb eines Publish-Formulars seinen Kontext bekommt, und derselbe, den
+// die Schrittauswahl im Funnels-Addon nimmt.
+//
+// Gespeichert wird weiter ein Pfad auf einer Platte, weil das die
+// Download-Route ausliefert. Der Feldtyp spricht Asset-IDs und Listen; umgepackt
+// wird an genau dieser Naht, hin serverseitig, zurueck hier.
+const fileValues = ref({ ...(props.fileField?.values || {}) });
+
+const fileBlueprintFields = computed(
+    () => props.fileField?.blueprint?.tabs?.[0]?.sections?.[0]?.fields ?? [],
+);
+
+const fileAssetId = computed(() => (fileValues.value.file_asset || [])[0] ?? null);
+
 function number(value) {
     const trimmed = String(value ?? '').trim();
     return trimmed === '' ? null : Number(trimmed);
@@ -50,8 +67,7 @@ function payload() {
         ...(isCreating.value ? { handle: handle.value || null } : {}),
         description: description.value || null,
         delivery_type: deliveryType.value,
-        file_path: isFile.value ? (filePath.value || null) : null,
-        file_disk: isFile.value ? (fileDisk.value || null) : null,
+        file_asset: isFile.value ? fileAssetId.value : null,
         link_url: isFile.value ? null : (linkUrl.value || null),
         requires_confirmation: requiresConfirmation.value,
         published: published.value,
@@ -68,7 +84,7 @@ const formErrors = ref({});
 // Keys rendered next to their own field. Anything else has no field to sit at
 // and goes into the summary above the form, or it would be invisible.
 const fieldKeys = [
-    'title', 'handle', 'description', 'delivery_type', 'file_path', 'file_disk', 'link_url',
+    'title', 'handle', 'description', 'delivery_type', 'file_asset', 'link_url',
     'requires_confirmation', 'published', 'link_ttl', 'max_downloads', 'grant_ttl_days',
     'tags', 'marketing_list',
 ];
@@ -79,7 +95,7 @@ const fieldKeys = [
 // summary or it is shown nowhere at all.
 const keysWithAVisibleField = computed(() => fieldKeys.filter((key) => {
     if (key === 'handle') return isCreating.value;
-    if (key === 'file_path' || key === 'file_disk') return isFile.value;
+    if (key === 'file_asset') return isFile.value;
     if (key === 'link_url') return ! isFile.value;
     return true;
 }));
@@ -183,16 +199,35 @@ function destroy() {
                         <Select v-model="deliveryType" :options="deliveryOptions" />
                     </Field>
 
-                    <Field v-if="isFile" :label="__('File path')" :error="formErrors.file_path">
-                        <Input v-model="filePath" placeholder="lead-magnets/warm-up.pdf" />
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {{ __('Path on the disk below. The file is streamed through the signed download route, never linked directly.') }}
-                        </p>
-                    </Field>
+                    <!-- Der Container haelt den Zustand fuer das Dateifeld. Er
+                         muss es umschliessen, weil ein Kernfeldtyp seinen
+                         Kontext nur von einem Vorfahren bekommt. -->
+                    <div v-if="isFile">
+                        <Alert
+                            v-if="diskWarning"
+                            variant="error"
+                            :text="diskWarning"
+                            class="mb-4"
+                            data-lead-magnets-disk-warning
+                        />
 
-                    <Field v-if="isFile" :label="__('Disk')" :error="formErrors.file_disk">
-                        <Input v-model="fileDisk" :placeholder="__('Leave empty for the default disk')" />
-                    </Field>
+                        <PublishContainer
+                            name="lead-magnet-file"
+                            :blueprint="fileField?.blueprint"
+                            :meta="fileField?.meta || {}"
+                            :model-value="fileValues"
+                            :track-dirty-state="false"
+                            @update:model-value="(next) => (fileValues = next)"
+                        >
+                            <PublishFieldsProvider :fields="fileBlueprintFields">
+                                <PublishFields />
+                            </PublishFieldsProvider>
+                        </PublishContainer>
+
+                        <p v-if="formErrors.file_asset" class="mt-1 text-xs text-red-500">
+                            {{ formErrors.file_asset }}
+                        </p>
+                    </div>
 
                     <Field v-if="!isFile" :label="__('Link URL')" :error="formErrors.link_url">
                         <Input v-model="linkUrl" placeholder="https://…" />

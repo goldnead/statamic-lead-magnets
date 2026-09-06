@@ -85,6 +85,15 @@ Grant the `view lead magnets` permission to the roles that need the CP screen.
 *Link*, and set the handle — the handle is what your form names, and it must be
 unique across every brand (see *Multi-brand* below).
 
+*File* gives you Statamic's asset browser, over a container of this addon's own
+that is created the first time you open the form. Upload there, or pick a file
+already in it. The container is **not** one of the site's existing ones and that
+is deliberate — see *Where the files live* below.
+
+*Link* forwards the visitor to a URL you hold elsewhere. Both go through the
+same signed route, so both are counted, capped and audited identically; the
+listing names which of the two applies and what it points at.
+
 ### 2. Point a form at it
 
 ```html
@@ -256,6 +265,29 @@ Confirmation tokens are minted with `random_bytes(32)`, stored only as a
 SHA-256 hash, and cleared the moment they are used. A leaked database row is not
 a working confirmation link.
 
+### Where the files live
+
+An uploaded resource goes into the addon's own asset container, `lead_magnets`,
+on the addon's own disk, `lead-magnets`. That disk is defined by the addon —
+`storage/app/lead-magnets`, with no `url`, no `serve` and no public
+visibility — so it sits outside the document root and Laravel registers no
+route against it. The signed download route is the only way to the file.
+
+This is the reason the addon does not simply use a container that is already
+there. Statamic's default asset container is on `public/assets`: a URL, public
+visibility, and files the web server hands over before Laravel sees the request.
+A resource put there is a public download whatever the grant says, and the
+`assets` fieldtype would have picked exactly that container by default.
+
+If you point `assets.disk` at a disk of your own that turns out to be
+web-accessible — a `url`, public visibility, or a root inside `public/` — the
+resource form says so in red rather than letting it pass. `AssetContainer::private()`
+does not catch all three cases, so the addon asks the wider question itself.
+
+Both halves of that claim are tested: the file is refused over every public
+address it could plausibly have, and delivered over the signed route in the same
+test.
+
 ---
 
 ## Multi-brand
@@ -285,6 +317,8 @@ See `config/lead-magnets.php`. The settings worth knowing:
 | `requests.throttle` | `10,1` | Requests per minute per client |
 | `entitlements.source` | `lead_magnet` | Marks an entitlement as this addon's |
 | `entitlements.subject_type` | `lead-magnet-contact` | Morph type of a lead-magnet contact |
+| `assets.container` | `lead_magnets` | The asset container uploads go into |
+| `assets.disk` | `lead-magnets` | Its disk. Defined by the addon unless the host already defines one under that name — and it must not be web-accessible |
 | `integrations.*` | `true` | Turn an installed sibling's bridge off |
 
 Most of these can be overridden per resource in the Control Panel. The two

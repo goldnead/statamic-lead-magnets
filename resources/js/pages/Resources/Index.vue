@@ -6,7 +6,7 @@ import {
 } from '@statamic/cms/ui';
 
 const props = defineProps([
-    'resources',  // [{ id, handle, title, delivery_type, requires_confirmation, published, active, pending, show_url, edit_url, delete_url }]
+    'resources',  // [{ id, handle, title, delivery_type, delivery_source, requires_confirmation, published, active, pending, show_url, edit_url, delete_url }]
     'columns',    // Array<Column>
     'createUrl',  // string
     'canManage',  // bool
@@ -81,11 +81,24 @@ function destroy() {
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ row.handle }}</span>
             </template>
 
+            <!-- Die Pille sagt, welcher der beiden Wege gilt, und daneben
+                 steht, was er ausliefert: der Dateiname oder die Ziel-URL. Ein
+                 Datensatz kann in beiden Spalten etwas tragen; die
+                 Download-Route entscheidet allein nach `delivery_type`, und die
+                 Quelle daneben macht auf einen Blick sichtbar, welche der
+                 beiden Angaben tatsaechlich zaehlt. -->
             <template #cell-delivery_type="{ row }">
-                <Badge
-                    :color="row.delivery_type === 'file' ? 'blue' : 'default'"
-                    :text="row.delivery_type === 'file' ? __('File') : __('Link')"
-                />
+                <div class="flex min-w-0 items-center gap-2">
+                    <Badge
+                        :color="row.delivery_type === 'file' ? 'blue' : 'default'"
+                        :text="row.delivery_type === 'file' ? __('File') : __('Link')"
+                    />
+                    <span
+                        v-if="row.delivery_source"
+                        class="truncate text-xs text-gray-500 dark:text-gray-400"
+                        :title="row.delivery_source"
+                    >{{ row.delivery_source }}</span>
+                </div>
             </template>
 
             <template #cell-requires_confirmation="{ row }">

@@ -85,6 +85,52 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(SiblingBridges::class);
     }
 
+    /**
+     * Define the disk the addon's asset container sits on, unless the host
+     * application already defines one under that name.
+     *
+     * Its own disk, and emphatically not one of the disks already there. The
+     * container config of Statamic's `assets` fieldtype defaults to the site's
+     * single existing container, which on a standard install sits on the
+     * `assets` disk: `public/assets`, with a URL, served by the web server
+     * before Laravel sees the request. Putting a resource that is gated behind
+     * a double opt-in there publishes it at a guessable address, and nothing
+     * in the Control Panel would say so.
+     *
+     * So: no `url`, no `serve`, no public visibility, and a root under
+     * `storage/app` rather than anywhere below the document root. The signed
+     * download route is then the only way to the file, which is the whole
+     * point of the addon.
+     *
+     * Registered here rather than published into the host's
+     * `config/filesystems.php`, so that installing the addon is enough and
+     * there is no step between "composer require" and a safe container.
+     *
+     * After `bootPublishables()`, not in `register()`: the addon's own config
+     * is merged during boot, so the disk name is not readable any earlier.
+     * Late is harmless — a disk is built the first time something asks for it,
+     * and Laravel's `/storage` routing is decided in
+     * `FilesystemServiceProvider::register()`, before this could add anything
+     * to be routed.
+     */
+    protected function bootAssetDisk(): self
+    {
+        $disk = (string) config('lead-magnets.assets.disk', 'lead-magnets');
+
+        if ($disk === '' || is_array(config('filesystems.disks.'.$disk))) {
+            return $this;
+        }
+
+        config(['filesystems.disks.'.$disk => [
+            'driver' => 'local',
+            'root' => storage_path('app/lead-magnets'),
+            'serve' => false,
+            'throw' => false,
+        ]]);
+
+        return $this;
+    }
+
     public function boot(): void
     {
         parent::boot();
@@ -187,7 +233,8 @@ class ServiceProvider extends AddonServiceProvider
             ->bootNav()
             ->bootPermissions()
             ->bootSchedule()
-            ->bootPublishables();
+            ->bootPublishables()
+            ->bootAssetDisk();
     }
 
     /**

@@ -65,6 +65,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | The file store
+    |--------------------------------------------------------------------------
+    |
+    | Files uploaded in the Control Panel go into a Statamic asset container of
+    | this addon's own, created the first time the resource form is opened.
+    |
+    | The disk under it must not be reachable from the web, and the disks a
+    | Statamic site already has are the wrong place: the default `assets` disk
+    | is `public/assets` with a public URL, so a resource put there is a public
+    | download no matter what the addon does with it. The assets fieldtype
+    | would pick exactly that container by default. So the addon defines the
+    | disk named here itself, with no `url`, no `serve` and no public
+    | visibility, rooted at `storage/app/lead-magnets` and therefore outside
+    | the document root. The only way to the file is the signed download route.
+    |
+    | Naming a disk that the host application already defines leaves it alone.
+    | If that disk is web-accessible, the resource form says so rather than
+    | letting it pass unnoticed.
+    |
+    */
+
+    'assets' => [
+        'container' => 'lead_magnets',
+        'disk' => 'lead-magnets',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Requests
     |--------------------------------------------------------------------------
     |

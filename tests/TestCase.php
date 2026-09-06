@@ -3,6 +3,7 @@
 namespace Goldnead\LeadMagnets\Tests;
 
 use Goldnead\LeadMagnets\ServiceProvider;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Statamic\Testing\AddonTestCase;
 
@@ -43,6 +44,20 @@ abstract class TestCase extends AddonTestCase
     {
         foreach (glob(__DIR__.'/__fixtures__/users/*.yaml') ?: [] as $file) {
             @unlink($file);
+        }
+
+        // Asset containers are YAML files too, and the files inside them are
+        // real files on a real disk. Both outlive `RefreshDatabase` for the
+        // same reason the users above do, and both change what the next test
+        // sees: a container left behind is one `ensureContainer()` no longer
+        // has to create, and a file left behind is an asset the file picker
+        // preselects for a resource that never had one.
+        foreach (glob(__DIR__.'/__fixtures__/content/assets/*.yaml') ?: [] as $file) {
+            @unlink($file);
+        }
+
+        if (($root = config('filesystems.disks.lead-magnets.root')) && is_dir($root)) {
+            (new Filesystem)->deleteDirectory($root);
         }
 
         parent::tearDown();
@@ -94,11 +109,22 @@ abstract class TestCase extends AddonTestCase
         $app['config']->set('mail.default', 'array');
         $app['config']->set('mail.from', ['address' => 'noreply@example.com', 'name' => 'Test']);
 
+        // The disk the addon's provider would define on a real install: no
+        // `url`, no `serve`, no public visibility, and a root that is not
+        // below `public/`. Named here as well so the suite does not depend on
+        // Testbench's storage layout matching a real application's.
         $app['config']->set('filesystems.disks.lead-magnets', [
             'driver' => 'local',
             'root' => storage_path('framework/testing/lead-magnets'),
             'throw' => false,
         ]);
+
+        // Laravel's own `/storage/{path}` route, on, the way a fresh skeleton
+        // ships it. The suite is otherwise measuring an application with less
+        // web surface than the one the addon will be installed into, and the
+        // question this addon has to answer is exactly "can anything but the
+        // signed route reach the file".
+        $app['config']->set('filesystems.disks.local.serve', true);
     }
 
     protected function setUp(): void

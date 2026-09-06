@@ -7,13 +7,19 @@ use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
+use Goldnead\LeadMagnets\Support\MagnetAssets;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Statamic\Assets\Asset;
 use Statamic\CP\Column;
+use Statamic\Facades\Asset as AssetFacade;
+use Statamic\Facades\Blueprint;
 use Statamic\Support\Str;
 
 class ResourceController extends Controller
 {
+    public function __construct(protected MagnetAssets $assets) {}
+
     public function index(Request $request)
     {
         $this->authorizeOrFail($request, 'view lead magnets');
@@ -34,6 +40,16 @@ class ResourceController extends Controller
                     'handle' => $resource->handle,
                     'title' => $resource->title,
                     'delivery_type' => $resource->delivery_type,
+                    // What is actually delivered, next to the pill that says
+                    // which of the two ways applies. A row may carry a value in
+                    // both columns — nothing stops a seed or an older record —
+                    // and `delivery_type` alone then reads as an assertion the
+                    // data does not back. The download route branches on
+                    // `delivery_type` and on nothing else, so naming the source
+                    // it will actually reach for settles the question on screen.
+                    'delivery_source' => $resource->isLink()
+                        ? $resource->link_url
+                        : ($resource->file_path === null ? null : basename($resource->file_path)),
                     'requires_confirmation' => $resource->requires_confirmation,
                     'published' => $resource->published,
                     'active' => (int) ($active[$resource->id] ?? 0),
@@ -61,6 +77,8 @@ class ResourceController extends Controller
         return Inertia::render('lead-magnets::Resources/Edit', [
             'resource' => null,
             'storeUrl' => cp_route('lead-magnets.resources.store'),
+            'fileField' => $this->fileField(null),
+            'diskWarning' => $this->diskWarning(),
         ]);
     }
 
@@ -185,6 +203,8 @@ class ResourceController extends Controller
                 'tags' => $record->tagList(),
                 'marketing_list' => $record->marketing_list,
             ],
+            'fileField' => $this->fileField($record),
+            'diskWarning' => $this->diskWarning(),
             'updateUrl' => cp_route('lead-magnets.resources.update', $record->id),
             'deleteUrl' => cp_route('lead-magnets.resources.destroy', $record->id),
         ]);
@@ -197,7 +217,7 @@ class ResourceController extends Controller
         $record = Resource::query()->find($resource);
         abort_if($record === null, 404);
 
-        $record->update($this->attributes($this->validated($request, $record)));
+        $record->update($this->attributes($this->validated($request, $record), $record));
 
         return back()->with('success', __('lead-magnets::resources.updated'));
     }
@@ -239,6 +259,87 @@ class ResourceController extends Controller
     }
 
     /**
+     * The file picker: Statamic's own `assets` fieldtype over this addon's
+     * container, as a one-field blueprint the Vue page renders through a
+     * `PublishContainer`.
+     *
+     * The core fieldtype rather than a path to type by hand, because it is what
+     * an editor already knows from every other screen — browsing, uploading,
+     * renaming and the folder tree come with it, and none of them are worth
+     * rebuilding. It is also the reason the container has to exist before this
+     * page renders, so it is created here.
+     *
+     * The stored value stays what it always was, a path on a disk, because
+     * that is what `DownloadController` streams. The fieldtype speaks asset ids
+     * and lists; the conversion happens at this one seam and nowhere else.
+     * A path that no longer resolves to an asset — a file deleted, or a magnet
+     * whose path was set by hand before this existed — preprocesses to an empty
+     * selection rather than an error.
+     *
+     * @return array{blueprint: array<string, mixed>, values: array<string, mixed>, meta: array<string, mixed>}
+     */
+    protected function fileField(?Resource $record): array
+    {
+        $this->assets->ensureContainer();
+
+        $blueprint = Blueprint::makeFromFields([
+            'file_asset' => [
+                'type' => 'assets',
+                'display' => __('lead-magnets::resources.file'),
+                'instructions' => __('lead-magnets::resources.file_instructions'),
+                'container' => $this->assets->containerHandle(),
+                'max_files' => 1,
+                'mode' => 'list',
+            ],
+        ]);
+
+        $fields = $blueprint
+            ->fields()
+            ->addValues(['file_asset' => $record?->file_path ? [$record->file_path] : []])
+            ->preProcess();
+
+        return [
+            'blueprint' => $blueprint->toPublishArray(),
+            'values' => $fields->values()->all(),
+            'meta' => $fields->meta()->all(),
+        ];
+    }
+
+    /**
+     * The asset an id names, but only if it is one of this addon's.
+     *
+     * A trust boundary, not a formality: the id arrives from a browser and
+     * decides which file a resource hands out. An id naming an asset in some
+     * other container — the public one a site keeps its images in, say — is
+     * refused rather than stored under this addon's disk, where it would
+     * resolve to nothing and the download would 404 with no explanation.
+     */
+    protected function assetInContainer(mixed $id): ?Asset
+    {
+        if (! is_string($id) || $id === '') {
+            return null;
+        }
+
+        $asset = AssetFacade::find($id);
+
+        return $asset instanceof Asset && $asset->container()?->handle() === $this->assets->containerHandle()
+            ? $asset
+            : null;
+    }
+
+    /**
+     * Said out loud on the form when the container's disk can be reached from
+     * the web, because then the addon's central promise does not hold and
+     * nothing else on the screen would show it.
+     */
+    protected function diskWarning(): ?string
+    {
+        return $this->assets->diskIsPublic()
+            ? __('lead-magnets::resources.disk_public', ['disk' => $this->assets->diskHandle()])
+            : null;
+    }
+
+    /**
      * How many grants per resource currently resolve to `$state`.
      *
      * @return array<int, int>
@@ -261,8 +362,26 @@ class ResourceController extends Controller
             'handle' => [$existing ? 'prohibited' : 'nullable', 'string', 'max:191', 'regex:/^[a-z0-9_\-]+$/'],
             'description' => ['nullable', 'string'],
             'delivery_type' => ['required', 'in:file,link'],
-            'file_path' => ['nullable', 'string', 'max:255', 'required_if:delivery_type,file'],
-            'file_disk' => ['nullable', 'string', 'max:64'],
+            // The picker sends an asset id. It is required only when the record
+            // has no file yet: an existing one keeps the file it has when the
+            // selection comes back empty, so a title can be edited without
+            // re-uploading (see `attributes()`).
+            'file_asset' => [
+                'nullable',
+                'string',
+                'max:255',
+                $existing?->file_path === null ? 'required_if:delivery_type,file' : 'sometimes',
+                // A trust boundary, not a formality. The id arrives from the
+                // browser and decides which file this resource hands out, so an
+                // id naming an asset in some other container — the public one a
+                // site keeps its images in, say — is refused rather than stored
+                // under this addon's disk, where it would resolve to nothing.
+                function (string $attribute, mixed $value, callable $fail): void {
+                    if ($value !== null && $value !== '' && $this->assetInContainer($value) === null) {
+                        $fail(__('lead-magnets::resources.file_unknown'));
+                    }
+                },
+            ],
             'link_url' => ['nullable', 'url', 'max:2000', 'required_if:delivery_type,link'],
             'requires_confirmation' => ['nullable', 'boolean'],
             'published' => ['nullable', 'boolean'],
@@ -279,14 +398,32 @@ class ResourceController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    protected function attributes(array $data): array
+    protected function attributes(array $data, ?Resource $existing = null): array
     {
+        $isFile = $data['delivery_type'] === Resource::TYPE_FILE;
+
+        // The picker's asset id back to the path the download route streams.
+        // Validation has already established that the asset exists and belongs
+        // to this addon's container, so the disk is the container's by
+        // construction rather than by something a form sent.
+        $picked = $isFile
+            ? $this->assetInContainer($data['file_asset'] ?? null)?->path()
+            : null;
+
+        // An empty selection on an existing record does not clear its file.
+        // A resource whose path was set by hand before the picker existed
+        // points outside the container, so the picker cannot show it and comes
+        // back empty through no fault of the editor — emptying the column on
+        // the save of an unrelated field would break a working download in
+        // silence. Changing the file means choosing another one.
+        $keep = $isFile && $picked === null && $existing?->file_path !== null;
+
         return [
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'delivery_type' => $data['delivery_type'],
-            'file_path' => $data['delivery_type'] === Resource::TYPE_FILE ? ($data['file_path'] ?? null) : null,
-            'file_disk' => $data['delivery_type'] === Resource::TYPE_FILE ? ($data['file_disk'] ?? null) : null,
+            'file_path' => $keep ? $existing->file_path : $picked,
+            'file_disk' => $keep ? $existing->file_disk : ($picked === null ? null : $this->assets->diskHandle()),
             'link_url' => $data['delivery_type'] === Resource::TYPE_LINK ? ($data['link_url'] ?? null) : null,
             'requires_confirmation' => (bool) ($data['requires_confirmation'] ?? true),
             'published' => (bool) ($data['published'] ?? true),

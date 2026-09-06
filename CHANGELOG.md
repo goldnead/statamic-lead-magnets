@@ -1,5 +1,48 @@
 # Changelog
 
+## 3.4.0 — 2026-09-07
+
+### Datei hochladen statt Pfad tippen — im eigenen Container, weiter über die signierte Route
+
+Adrian am 03.09.2026: „Gibt ja nen Statamic Asset Manager, den könnte man doch eigentlich
+nutzen, oder?" Bis hierhin trug eine Datei-Ressource zwei Textfelder, „Dateipfad" und
+„Speicherort", und die Datei musste jemand anders auf die Platte gelegt haben. Jetzt steht dort
+Statamics eigener `assets`-Feldtyp: durchsuchen, hochladen, austauschen.
+
+**Das ist nicht nur ein Feld.** Eine Datei im Asset-Container ist die Frage, ob sie damit frei
+im Web liegt, und ein Lead Magnet hinter Double Opt-in soll genau das nicht. Der Feldtyp hätte
+sich von allein den Container genommen, den die Seite schon hat — bei Statamic im Regelfall
+`public/assets`, mit URL und öffentlicher Sichtbarkeit. Das wäre der Download ohne Bestätigung
+gewesen, und nichts im Control Panel hätte es gesagt.
+
+Deshalb legt das Addon einen **eigenen Container** an (`lead_magnets`), auf einer **eigenen
+Platte** (`lead-magnets`), die es selbst definiert: `storage/app/lead-magnets`, ohne `url`, ohne
+`serve`, ohne öffentliche Sichtbarkeit. Damit liegt sie außerhalb des Dokumentwurzelverzeichnisses,
+Laravel legt keine Route darauf, und die signierte Download-Route bleibt der einzige Weg zur Datei.
+Der Container entsteht beim ersten Öffnen des Formulars, nicht durch einen Befehl, den niemand
+ausführt.
+
+Belegt statt behauptet: ein Test ruft die Datei über jede öffentliche Adresse ab, die sie haben
+könnte, und bekommt jedes Mal eine Abfuhr — und liefert im selben Test dieselben Bytes über die
+signierte Route aus. Ein zweiter Test zeigt, dass die Warnung greift: auf Laravels `public`-Platte
+sagt das Formular es rot.
+
+`AssetContainer::private()` reicht dafür nicht. Es liest nur den `url`-Schlüssel und kennt weder
+öffentliche Sichtbarkeit noch eine Wurzel unterhalb von `public/`. Das Addon fragt die weitere
+Frage selbst.
+
+**Der Link-Weg ist unverändert.** Beide Wege stehen nebeneinander, und die Liste zeigt jetzt neben
+der Pille auch, was sie ausliefert: den Dateinamen oder die Ziel-URL. Ein Datensatz kann in beiden
+Spalten etwas tragen; die Download-Route entscheidet allein nach `delivery_type`, und genau die
+Quelle steht daneben.
+
+Gespeichert wird weiter ein Pfad auf einer Platte — die Auslieferung ist unberührt. Der Feldtyp
+spricht Asset-IDs; umgepackt wird an dieser einen Naht. Eine ID aus einem fremden Container wird
+abgelehnt, und eine leere Auswahl beim Bearbeiten löscht eine hinterlegte Datei nicht.
+
+Entfallen: die Eingabefelder „Dateipfad" und „Speicherort". Die Platte kommt jetzt vom Container
+und nicht mehr aus dem Formular.
+
 ## 3.3.1 — 2026-09-03
 
 ### Behoben: Fehlerbanner als `Alert`, Löschen ins Kopfmenü

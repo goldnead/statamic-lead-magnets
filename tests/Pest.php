@@ -4,8 +4,10 @@ use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\GrantService;
+use Goldnead\LeadMagnets\Support\MagnetAssets;
 use Goldnead\LeadMagnets\Tests\TestCase;
 use Illuminate\Support\Facades\Storage;
+use Statamic\Assets\Asset;
 
 uses(TestCase::class)->in('Feature', 'Unit');
 
@@ -31,6 +33,28 @@ function makeResource(array $attributes = []): Resource
     }
 
     return Resource::query()->create($attributes);
+}
+
+/**
+ * A real Statamic asset in the addon's own container, the way an upload in the
+ * Control Panel leaves one.
+ *
+ * Written through `Asset` rather than straight onto the disk, so the container,
+ * the path and the id are the ones the picker and the controller actually work
+ * with — a file dropped on the disk by hand would pass a test that a real
+ * upload fails.
+ */
+function makeMagnetAsset(string $filename = 'warm-up.pdf', string $contents = 'the file itself'): Asset
+{
+    $assets = app(MagnetAssets::class);
+    $container = $assets->ensureContainer();
+
+    Storage::disk($assets->diskHandle())->put($filename, $contents);
+
+    $asset = Statamic\Facades\Asset::make()->container($container)->path($filename);
+    $asset->save();
+
+    return $asset;
 }
 
 /**
