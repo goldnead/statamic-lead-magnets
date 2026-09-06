@@ -65,7 +65,7 @@
             "description": "Gated resources with confirm-first delivery, signed download links and a download audit.",
             "url": "https://github.com/goldnead/statamic-lead-magnets",
             "developer": "Adrian Goldner",
-            "developer-url": "https://gldnr.studio"
+            "developer-url": "https://adriangoldner.dev"
         },
         "laravel": {
             "providers": [
