@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets;
 
+use Goldnead\BrandContext\Settings\SettingsRegistry;
 use Goldnead\LeadMagnets\Console\MigrateGrantsCommand;
 use Goldnead\LeadMagnets\Console\SweepGrantsCommand;
 use Goldnead\LeadMagnets\Contracts\SenderIdentityResolver;
@@ -12,6 +13,7 @@ use Goldnead\LeadMagnets\Integrations\Insights\Requested;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Goldnead\LeadMagnets\Sending\BrandSenderIdentity;
+use Goldnead\LeadMagnets\Support\Settings;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
 use Statamic\Facades\CP\Nav;
@@ -134,6 +136,17 @@ class ServiceProvider extends AddonServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        // Diesem Addon seinen Abschnitt auf der gemeinsamen Einstellungsseite
+        // geben. In `boot()`, nicht in `bootAddon()`, und das ist keine
+        // Stilfrage: brand-context legt die gespeicherten Werte aus einem
+        // `app->booted()`-Rueckruf auf die laufende Config, damit jedes Addon
+        // vorher seine Chance zum Anmelden hatte. `bootAddon()` laeuft
+        // selbst aus einem `app->booted()`-Rueckruf, und welcher der beiden
+        // zuerst dran ist, haengt an der Paket-Ladereihenfolge — dort
+        // angemeldet wuerden die Einstellungen auf manchen Installationen
+        // greifen und auf anderen nicht.
+        app(SettingsRegistry::class)->register(Settings::class);
 
         $this->registerSiblingBridges();
         $this->registerInsightsMetrics();
@@ -284,6 +297,13 @@ class ServiceProvider extends AddonServiceProvider
                             ->label(__('lead-magnets::permissions.manage')),
                         Permission::make('manage lead magnet grants')
                             ->label(__('lead-magnets::permissions.manage_grants')),
+                        // Der Abschnitt auf der gemeinsamen Einstellungsseite
+                        // (`/cp/brand-settings`). Nach der Regel der Suite
+                        // benannt — `manage <handle> settings` mit dem
+                        // Paketnamen ohne `statamic-`-Praefix —, damit die
+                        // Seite ueber alle Addons hinweg eine Namensform hat.
+                        Permission::make('manage lead-magnets settings')
+                            ->label(__('lead-magnets::permissions.manage_settings')),
                     ]);
             });
         });

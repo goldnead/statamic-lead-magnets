@@ -6,7 +6,7 @@ import {
 } from '@statamic/cms/ui';
 
 const props = defineProps([
-    'resources',  // [{ id, handle, title, delivery_type, delivery_source, requires_confirmation, published, active, pending, show_url, edit_url, delete_url }]
+    'resources',  // [{ id, handle, title, delivery_type, delivery_source, requires_confirmation, published, active, pending, show_url, delete_url }]
     'columns',    // Array<Column>
     'createUrl',  // string
     'canManage',  // bool
@@ -123,8 +123,10 @@ function destroy() {
                 />
             </template>
 
+            <!-- Kein „Bearbeiten" mehr: der Titel fuehrt auf die Detailseite, und
+                 die ist das Formular. Ein zweiter Weg dorthin waere nur ein
+                 zweiter Name fuer dieselbe Seite. -->
             <template #prepended-row-actions="{ row }">
-                <DropdownItem v-if="canManage" :text="__('Edit')" icon="edit" :href="row.edit_url" />
                 <DropdownItem v-if="canManage" :text="__('Delete')" icon="trash" @click="toDelete = row" />
             </template>
         </Listing>

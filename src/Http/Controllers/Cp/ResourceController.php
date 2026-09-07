@@ -55,7 +55,6 @@ class ResourceController extends Controller
                     'active' => (int) ($active[$resource->id] ?? 0),
                     'pending' => (int) ($pending[$resource->id] ?? 0),
                     'show_url' => cp_route('lead-magnets.resources.show', $resource->id),
-                    'edit_url' => cp_route('lead-magnets.resources.edit', $resource->id),
                     'delete_url' => cp_route('lead-magnets.resources.destroy', $resource->id),
                 ];
             })
@@ -74,8 +73,7 @@ class ResourceController extends Controller
     {
         $this->authorizeOrFail($request, 'manage lead magnets');
 
-        return Inertia::render('lead-magnets::Resources/Edit', [
-            'resource' => null,
+        return Inertia::render('lead-magnets::Resources/Create', [
             'storeUrl' => cp_route('lead-magnets.resources.store'),
             'fileField' => $this->fileField(null),
             'diskWarning' => $this->diskWarning(),
@@ -115,6 +113,8 @@ class ResourceController extends Controller
         $record = Resource::query()->find($resource);
         abort_if($record === null, 404);
 
+        $canManage = $this->userCan($request, 'manage lead magnets');
+
         // An unknown filter value is dropped rather than passed to the resolver.
         // `EntitlementState::from()` on a query string is an uncaught ValueError
         // and a 500 for anybody who edits the URL.
@@ -146,19 +146,35 @@ class ResourceController extends Controller
         ])->all();
 
         return Inertia::render('lead-magnets::Resources/Show', [
-            // Only the four fields the page renders. Handing the whole model —
-            // let alone the addon's config — to Inertia would put the storage
-            // disk and the file path into the page source of every editor's
-            // browser for no reason.
+            // The editable fields, and only those. The storage disk and the
+            // path on it stay out: they are of no use to a form and would sit
+            // in the page source of every editor's browser. The file picker
+            // below carries the one path it needs, and only for somebody who
+            // may change it.
             'resource' => [
                 'id' => $record->id,
                 'handle' => $record->handle,
                 'title' => $record->title,
                 'description' => $record->description,
                 'delivery_type' => $record->delivery_type,
+                'link_url' => $record->link_url,
                 'requires_confirmation' => $record->requires_confirmation,
                 'published' => $record->published,
+                'link_ttl' => $record->link_ttl,
+                'max_downloads' => $record->max_downloads,
+                'grant_ttl_days' => $record->grant_ttl_days,
+                'tags' => $record->tagList(),
+                'marketing_list' => $record->marketing_list,
             ],
+            // The detail page is the form — the same shape the create page
+            // gets. Without the permission to change anything it is handed no
+            // picker, no save route and no delete route, and the fields render
+            // read-only; hiding a button would not be authorization, but there
+            // is also no reason to ship a control nobody may use.
+            'fileField' => $canManage ? $this->fileField($record) : null,
+            'diskWarning' => $canManage ? $this->diskWarning() : null,
+            'updateUrl' => $canManage ? cp_route('lead-magnets.resources.update', $record->id) : null,
+            'deleteUrl' => $canManage ? cp_route('lead-magnets.resources.destroy', $record->id) : null,
             'grants' => $grants,
             'columns' => $this->grantColumns(),
             // All six entitlement states, not the four this addon writes. An
@@ -172,41 +188,8 @@ class ResourceController extends Controller
                 'last_page' => $page->lastPage(),
                 'total' => $page->total(),
             ],
-            'editUrl' => cp_route('lead-magnets.resources.edit', $record->id),
-            'canManage' => $this->userCan($request, 'manage lead magnets'),
+            'canManage' => $canManage,
             'canManageGrants' => $this->userCan($request, 'manage lead magnet grants'),
-        ]);
-    }
-
-    public function edit(Request $request, int $resource)
-    {
-        $this->authorizeOrFail($request, 'manage lead magnets');
-
-        $record = Resource::query()->find($resource);
-        abort_if($record === null, 404);
-
-        return Inertia::render('lead-magnets::Resources/Edit', [
-            'resource' => [
-                'id' => $record->id,
-                'handle' => $record->handle,
-                'title' => $record->title,
-                'description' => $record->description,
-                'delivery_type' => $record->delivery_type,
-                'file_path' => $record->file_path,
-                'file_disk' => $record->file_disk,
-                'link_url' => $record->link_url,
-                'requires_confirmation' => $record->requires_confirmation,
-                'published' => $record->published,
-                'link_ttl' => $record->link_ttl,
-                'max_downloads' => $record->max_downloads,
-                'grant_ttl_days' => $record->grant_ttl_days,
-                'tags' => $record->tagList(),
-                'marketing_list' => $record->marketing_list,
-            ],
-            'fileField' => $this->fileField($record),
-            'diskWarning' => $this->diskWarning(),
-            'updateUrl' => cp_route('lead-magnets.resources.update', $record->id),
-            'deleteUrl' => cp_route('lead-magnets.resources.destroy', $record->id),
         ]);
     }
 

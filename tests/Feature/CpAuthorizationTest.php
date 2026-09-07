@@ -98,7 +98,9 @@ it('found the routes it means to check', function () {
     // matching — a renamed group, a changed Statamic CP name prefix — the
     // sweeps below would pass over an empty list and prove nothing at all.
     expect(count(leadMagnetRoutes(['POST', 'PATCH', 'PUT', 'DELETE'])))->toBeGreaterThanOrEqual(6)
-        ->and(count(leadMagnetRoutes(['GET'])))->toBeGreaterThanOrEqual(4);
+        // Drei, seit die Detailseite selbst das Formular ist: Liste, Anlegen,
+        // Detail. Eine `edit`-Route gibt es nicht mehr.
+        ->and(count(leadMagnetRoutes(['GET'])))->toBeGreaterThanOrEqual(3);
 });
 
 it('refuses every CP write route for a user with no lead-magnets permission', function () {
@@ -155,11 +157,29 @@ it('lets a viewer read and still refuses every write', function () {
     $resource = makeResource();
 
     $this->get(cp_route('lead-magnets.resources.index'))->assertOk();
-    $this->get(cp_route('lead-magnets.resources.show', $resource->id))->assertOk();
+
+    // Die Detailseite ist seit dem Umbau das Formular. Ein Leser bekommt sie
+    // weiterhin, aber ohne die Werkzeuge, sie zu aendern: keine Speicher-, keine
+    // Loeschadresse und keinen Dateiwaehler. Das Ausblenden eines Knopfes ist
+    // keine Autorisierung — die steht auf den Schreibrouten und wird darunter
+    // geprueft —, aber ein Bedienelement auszuliefern, das niemand benutzen
+    // darf, gibt es auch keinen Grund.
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('canManage', false)
+            ->where('updateUrl', null)
+            ->where('deleteUrl', null)
+            ->where('fileField', null)
+        );
 
     // Reading is not managing, and the separation is the point of two
     // permissions rather than one.
-    $this->getJson(cp_route('lead-magnets.resources.edit', $resource->id))->assertForbidden();
+    $this->patchJson(cp_route('lead-magnets.resources.update', $resource->id), [
+        'title' => 'Not allowed',
+        'delivery_type' => 'link',
+        'link_url' => 'https://example.com',
+    ])->assertForbidden();
 
     $this->postJson(cp_route('lead-magnets.resources.store'), [
         'title' => 'Not allowed',
@@ -175,7 +195,9 @@ it('separates managing resources from managing somebody else\'s access', functio
 
     $grant = makeGrant($resource, 'reader@example.com');
 
-    $this->get(cp_route('lead-magnets.resources.edit', $resource->id))->assertOk();
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('canManage', true));
 
     // Authoring a resource does not entitle anyone to reach into a named
     // person's access.
@@ -189,9 +211,11 @@ it('never hands the file location to the browser', function () {
 
     makeGrant($resource, 'reader@example.com');
 
-    // The show screen renders a title, a handle and the access list. It has no
-    // reason to know where the file lives, and the page source of an Inertia
-    // response is not a place to put storage layout.
+    // The show screen is the form now, but it still has no reason to carry the
+    // disk or the raw path: the picker speaks asset ids over this addon's own
+    // container, and the page source of an Inertia response is not a place to
+    // put storage layout. This resource's file sits outside the container, so
+    // the picker comes back empty rather than naming it.
     $this->get(cp_route('lead-magnets.resources.show', $resource->id))
         ->assertOk()
         ->assertDontSee('a-private-disk')

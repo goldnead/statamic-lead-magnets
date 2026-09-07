@@ -122,7 +122,6 @@ it('takes the grants and the download audit with the resource', function () {
 
 it('404s for a resource that is not there', function () {
     $this->getJson(cp_route('lead-magnets.resources.show', 999))->assertNotFound();
-    $this->getJson(cp_route('lead-magnets.resources.edit', 999))->assertNotFound();
     $this->patchJson(cp_route('lead-magnets.resources.update', 999), [])->assertNotFound();
     $this->deleteJson(cp_route('lead-magnets.resources.destroy', 999))->assertNotFound();
 });

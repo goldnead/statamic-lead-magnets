@@ -139,7 +139,7 @@ it('hands the form the picker preloaded with the resource that has a file', func
 
     $resource = makeResource(['file_path' => $asset->path()]);
 
-    $this->get(cp_route('lead-magnets.resources.edit', $resource->id))
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('fileField.blueprint.tabs.0.sections.0.fields.0.handle', 'file_asset')
@@ -165,7 +165,7 @@ it('shows an empty picker rather than breaking for a path that is not an asset',
         'published' => true,
     ]);
 
-    $this->get(cp_route('lead-magnets.resources.edit', $resource->id))
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('fileField.values.file_asset', []));
 });

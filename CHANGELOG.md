@@ -1,5 +1,39 @@
 # Changelog
 
+## Unveröffentlicht
+
+### Die Detailseite ist das Formular
+
+Adrian am 03.09.2026, Befund F08: der Knopf „Bearbeiten" führte auf ein zweites Formular auf
+einer eigenen Seite, während die Detailseite nur Pillen zeigte. Beim Collection-Entry gibt es
+diesen Bruch nicht. Jetzt hier auch nicht mehr: die Detailseite trägt die Felder, oben rechts
+steht „Speichern", Löschen sitzt im „…"-Menü daneben, und darunter stehen wie bisher die
+Zugänge. Die Route `lead-magnets.resources.edit` ist entfallen; „Ressource anlegen" bleibt eine
+eigene Seite, weil es dort noch keinen Datensatz gibt.
+
+Wer die Ressourcen nur ansehen darf, bekommt die Seite weiterhin — mit gesperrten Feldern, ohne
+Dateiwähler und ohne Speicher- oder Löschadresse.
+
+### Kein Inhalt mehr direkt auf grauem Grund
+
+Befund F06. Zwei graue Container mit Überschrift, darin weiße Inseln: die Schachtelung war
+umgekehrt zur Statamic-Norm, und bei den Zugängen lagen Tab, Suchfeld, Filterknopf und
+Spaltenköpfe auf Grau. Jetzt trägt der graue Grund die Seite, die Felder sitzen auf weißen
+Karten, und die Zugangsliste rendert wie jede Kernliste — mit eigenem weißen Tabellenrahmen.
+
+### Einstellungen im Control Panel
+
+Auslieferungsfristen, Bestätigungsfenster, Fallenfeld, Mail-Vorlagen und die sechs
+Geschwister-Schalter stehen unter `/cp/brand-settings` im Abschnitt „Lead Magnets", gestellt von
+`goldnead/statamic-brand-context` (jetzt `^1.12`). Neues Recht: `manage lead-magnets settings`.
+
+Nicht auf der Seite, und das ist Absicht: `routes.prefix` und `requests.throttle` werden beim
+Registrieren der Routen gelesen, `assets.disk`, `assets.container` und `delivery.disk` beim
+Booten beziehungsweise vor einem Umzug der Dateien, und `entitlements.source` und
+`entitlements.subject_type` sind Install-Zeit-Werte, deren Änderung jede bestehende Freigabe
+verwaisen lässt. Ein Schalter, der erst beim nächsten Deploy wirkt, wäre eine Lüge in der
+Oberfläche.
+
 ## 3.4.0 — 2026-09-07
 
 ### Datei hochladen statt Pfad tippen — im eigenen Container, weiter über die signierte Route

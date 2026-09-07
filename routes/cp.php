@@ -32,11 +32,8 @@ Route::prefix('lead-magnets')->name('lead-magnets.')->group(function () {
             ->whereNumber('resource')
             ->middleware('can:view lead magnets');
 
-        Route::get('/{resource}/edit', [ResourceController::class, 'edit'])
-            ->name('edit')
-            ->whereNumber('resource')
-            ->middleware('can:manage lead magnets');
-
+        // Kein `edit`. Die Detailseite ist das Formular — wie beim
+        // Collection-Entry — und speichert ueber `update` unten.
         Route::patch('/{resource}', [ResourceController::class, 'update'])
             ->name('update')
             ->whereNumber('resource')

@@ -24,7 +24,6 @@ return [
     'marketing_list' => 'Mailing list',
     'resources' => 'Resources',
     'create' => 'Create resource',
-    'edit' => 'Edit resource',
     'created' => 'Resource created.',
     'updated' => 'Resource saved.',
     'deleted' => 'Resource deleted.',

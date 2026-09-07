@@ -24,7 +24,6 @@ return [
     'marketing_list' => 'Verteiler',
     'resources' => 'Ressourcen',
     'create' => 'Ressource anlegen',
-    'edit' => 'Ressource bearbeiten',
     'created' => 'Ressource angelegt.',
     'updated' => 'Ressource gespeichert.',
     'deleted' => 'Ressource gelöscht.',
