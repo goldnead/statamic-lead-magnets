@@ -1,6 +1,6 @@
 # Changelog
 
-## Unveröffentlicht
+## 3.5.0 — 2026-09-07
 
 ### Die Detailseite ist das Formular
 
@@ -25,7 +25,15 @@ Karten, und die Zugangsliste rendert wie jede Kernliste — mit eigenem weißen 
 
 Auslieferungsfristen, Bestätigungsfenster, Fallenfeld, Mail-Vorlagen und die sechs
 Geschwister-Schalter stehen unter `/cp/brand-settings` im Abschnitt „Lead Magnets", gestellt von
-`goldnead/statamic-brand-context` (jetzt `^1.12`). Neues Recht: `manage lead-magnets settings`.
+`goldnead/statamic-brand-context` (jetzt `^1.13`). Neues Recht: `manage lead-magnets settings`;
+es hat zunächst niemand, und bis es einer Rolle zugewiesen ist, bleibt der Abschnitt unsichtbar.
+Die bestehenden Rechte sind unverändert.
+
+**Warum die Grenze bei 1.13 liegt und nicht bei 1.12.** Ältere Fassungen tragen die Seite, wenden
+ihre Werte aber nicht verlässlich an: auf einer Installation mit einer einzigen Marke wurden die
+Einstellungen der zuletzt angemeldeten Addons gar nicht auf die Config gelegt, und bis 1.12
+löschte ein zweites Speichern desselben Abschnitts die Überschreibung des ersten, ohne Meldung.
+Wer vor diesem Update Werte gesetzt hat, prüft danach, ob sie noch dastehen.
 
 Nicht auf der Seite, und das ist Absicht: `routes.prefix` und `requests.throttle` werden beim
 Registrieren der Routen gelesen, `assets.disk`, `assets.container` und `delivery.disk` beim
