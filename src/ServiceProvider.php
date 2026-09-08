@@ -62,6 +62,30 @@ class ServiceProvider extends AddonServiceProvider
     {
         parent::register();
 
+        // Die eigene Config zusammenfuehren, und zwar hier und nicht im Boot.
+        //
+        // `brand-context` haelt sich beim ersten Anwenden die Paketwerte als
+        // Baseline fest (`SettingsManager::baselineFor()`), und das laeuft aus
+        // `app->booted()`. Statamic ruft `bootAddon()` aus einem *eigenen*
+        // `app->booted()`-Rueckruf, der spaeter dran ist. Solange das Merge
+        // dort hing, war `config('lead-magnets')` im Moment der Baseline noch
+        // leer — und `??=` friert diese Leere fuer den Rest des Prozesses ein.
+        //
+        // Was das kostet: `packagedDefault()` antwortet dann fuer jeden
+        // Schluessel mit `null`, kein gespeicherter Wert entspricht je seinem
+        // Paket-Default, und die Zeile in `brand_settings` wird nie geloescht.
+        // Jede Einstellung bleibt auf ihrem Wert festgenagelt und die
+        // Installation gegen kuenftige Paket-Updates eingefroren, ohne Fehler
+        // und ohne Meldung. Gefallen ist das an
+        // `SettingsEditorTest > deletes the override when a value goes back to
+        // the packaged default`, ab brand-context 1.13.0.
+        //
+        // In `register()` ist ausserdem die Stelle, an der Laravel das Merge
+        // ohnehin erwartet, und an der es die siebzehn Geschwister-Addons der
+        // Suite auch machen. Nur `publishes()` bleibt im Boot: das braucht die
+        // Pfad-Helfer der Anwendung.
+        $this->mergeConfigFrom(__DIR__.'/../config/lead-magnets.php', 'lead-magnets');
+
         $langPath = __DIR__.'/../resources/lang';
 
         $this->app->resolving('translator', function ($translator) use ($langPath) {
@@ -108,12 +132,12 @@ class ServiceProvider extends AddonServiceProvider
      * `config/filesystems.php`, so that installing the addon is enough and
      * there is no step between "composer require" and a safe container.
      *
-     * After `bootPublishables()`, not in `register()`: the addon's own config
-     * is merged during boot, so the disk name is not readable any earlier.
-     * Late is harmless — a disk is built the first time something asks for it,
-     * and Laravel's `/storage` routing is decided in
-     * `FilesystemServiceProvider::register()`, before this could add anything
-     * to be routed.
+     * In the boot phase, not in `register()`. Die eigene Config waere seit dem
+     * Vorziehen des Merges nach `register()` zwar schon lesbar, aber der
+     * Disk-Eintrag gehoert trotzdem hierher: Laravel entscheidet die
+     * `/storage`-Routen in `FilesystemServiceProvider::register()`, und ein
+     * frueher eingehaengter Disk wuerde dort mitgeroutet werden. Spaet ist
+     * harmlos — ein Disk wird erst gebaut, wenn ihn jemand anfragt.
      */
     protected function bootAssetDisk(): self
     {
@@ -368,8 +392,10 @@ class ServiceProvider extends AddonServiceProvider
 
         // Merged as well as published. A config that is published but never
         // merged returns null on every site that did not publish it, which
-        // breaks the addon precisely for the users who did nothing wrong.
-        $this->mergeConfigFrom(__DIR__.'/../config/lead-magnets.php', 'lead-magnets');
+        // breaks the addon precisely for the users who did nothing wrong. Das
+        // Zusammenfuehren steht in `register()`, weil es dort frueh genug ist
+        // fuer die Baseline von brand-context; hier bleibt nur das
+        // Veroeffentlichen.
 
         return $this;
     }
