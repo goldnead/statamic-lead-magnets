@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.6.0 — 2026-09-09
+
+### A missing table is a sentence, not a stack trace
+
+The nav entry appears the moment the addon is installed, so the resources screen was reachable
+before anybody had run `php artisan migrate`. It then queried a table that did not exist and
+answered HTTP 500. Now the listing and the detail page check first, and a site that is not
+migrated yet gets a setup screen naming the tables that are missing and the command that creates
+them.
+
+The check names foreign tables too. The two counts on the listing join into `entitlements`, which
+belongs to a sibling addon, so a half-migrated install would crash there just as readily — and
+that would be the more confusing of the two failures. Every guarded page that turns somebody away
+writes the reason to the log first: a page that renders an empty state and stays silent everywhere
+would be worse than the crash it replaced, because the site would look installed and never work.
+
+### Settings no longer freeze on a fresh install
+
+The addon's own config is merged in `register()` now, not during boot. `brand-context` (from
+1.13.0) keeps the packaged values as its baseline the first time settings are applied, out of
+`app->booted()`; Statamic calls `bootAddon()` from a later `booted()` callback of its own. While
+the merge hung there, `config('lead-magnets')` was still empty when the baseline was taken, and
+`??=` froze that emptiness for the rest of the process.
+
+The cost was silent: `packagedDefault()` answered `null` for every key, no stored value ever
+matched its packaged default, the row in `brand_settings` was never deleted, and every setting
+stayed nailed to its value — the installation frozen against future package updates, with no error
+and no message. Publishing stays in the boot phase, as does the asset disk.
+
 ## 3.5.0 — 2026-09-07
 
 ### The detail page is the form
