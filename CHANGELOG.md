@@ -2,179 +2,174 @@
 
 ## 3.5.0 — 2026-09-07
 
-### Die Detailseite ist das Formular
+### The detail page is the form
 
-Adrian am 03.09.2026, Befund F08: der Knopf „Bearbeiten" führte auf ein zweites Formular auf
-einer eigenen Seite, während die Detailseite nur Pillen zeigte. Beim Collection-Entry gibt es
-diesen Bruch nicht. Jetzt hier auch nicht mehr: die Detailseite trägt die Felder, oben rechts
-steht „Speichern", Löschen sitzt im „…"-Menü daneben, und darunter stehen wie bisher die
-Zugänge. Die Route `lead-magnets.resources.edit` ist entfallen; „Ressource anlegen" bleibt eine
-eigene Seite, weil es dort noch keinen Datensatz gibt.
+Adrian on 2026-09-03, finding F08: the "Edit" button led to a second form on a page of its own,
+while the detail page showed only pills. With a collection entry there is no such break. There
+is none here any more either: the detail page carries the fields, "Save" sits at the top right,
+delete sits in the "…" menu beside it, and below them stand the grants as before. The route
+`lead-magnets.resources.edit` is gone; "Create resource" stays a page of its own, because there
+is no record there yet.
 
-Wer die Ressourcen nur ansehen darf, bekommt die Seite weiterhin — mit gesperrten Feldern, ohne
-Dateiwähler und ohne Speicher- oder Löschadresse.
+Anyone who may only view the resources still gets the page — with locked fields, without the
+file picker and without a save or delete address.
 
-### Kein Inhalt mehr direkt auf grauem Grund
+### No more content directly on grey ground
 
-Befund F06. Zwei graue Container mit Überschrift, darin weiße Inseln: die Schachtelung war
-umgekehrt zur Statamic-Norm, und bei den Zugängen lagen Tab, Suchfeld, Filterknopf und
-Spaltenköpfe auf Grau. Jetzt trägt der graue Grund die Seite, die Felder sitzen auf weißen
-Karten, und die Zugangsliste rendert wie jede Kernliste — mit eigenem weißen Tabellenrahmen.
+Finding F06. Two grey containers with a heading and white islands inside them: the nesting was
+the reverse of the Statamic norm, and on the grants the tab, search field, filter button and
+column headers sat on grey. Now the grey ground carries the page, the fields sit on white cards,
+and the grant listing renders like every core listing — with a white table frame of its own.
 
-### Einstellungen im Control Panel
+### Settings in the Control Panel
 
-Auslieferungsfristen, Bestätigungsfenster, Fallenfeld, Mail-Vorlagen und die sechs
-Geschwister-Schalter stehen unter `/cp/brand-settings` im Abschnitt „Lead Magnets", gestellt von
-`goldnead/statamic-brand-context` (jetzt `^1.13`). Neues Recht: `manage lead-magnets settings`;
-es hat zunächst niemand, und bis es einer Rolle zugewiesen ist, bleibt der Abschnitt unsichtbar.
-Die bestehenden Rechte sind unverändert.
+Delivery deadlines, confirmation window, honeypot field, mail templates and the six sibling
+switches sit under `/cp/brand-settings` in the "Lead Magnets" section, provided by
+`goldnead/statamic-brand-context` (now `^1.13`). New permission: `manage lead-magnets settings`;
+nobody holds it at first, and until it is assigned to a role the section stays invisible. The
+existing permissions are unchanged.
 
-**Warum die Grenze bei 1.13 liegt und nicht bei 1.12.** Ältere Fassungen tragen die Seite, wenden
-ihre Werte aber nicht verlässlich an: auf einer Installation mit einer einzigen Marke wurden die
-Einstellungen der zuletzt angemeldeten Addons gar nicht auf die Config gelegt, und bis 1.12
-löschte ein zweites Speichern desselben Abschnitts die Überschreibung des ersten, ohne Meldung.
-Wer vor diesem Update Werte gesetzt hat, prüft danach, ob sie noch dastehen.
+**Why the line is drawn at 1.13 and not at 1.12.** Older versions carry the page but do not apply
+its values reliably: on an installation with a single brand the settings of the addons registered
+last were not laid onto the config at all, and up to 1.12 a second save of the same section
+deleted the first save's override without a message. If you set values before this update, check
+afterwards whether they are still there.
 
-Nicht auf der Seite, und das ist Absicht: `routes.prefix` und `requests.throttle` werden beim
-Registrieren der Routen gelesen, `assets.disk`, `assets.container` und `delivery.disk` beim
-Booten beziehungsweise vor einem Umzug der Dateien, und `entitlements.source` und
-`entitlements.subject_type` sind Install-Zeit-Werte, deren Änderung jede bestehende Freigabe
-verwaisen lässt. Ein Schalter, der erst beim nächsten Deploy wirkt, wäre eine Lüge in der
-Oberfläche.
+Not on the page, and that is deliberate: `routes.prefix` and `requests.throttle` are read while
+the routes are registered, `assets.disk`, `assets.container` and `delivery.disk` at boot and
+before a move of the files respectively, and `entitlements.source` and
+`entitlements.subject_type` are install-time values whose change orphans every existing grant. A
+switch that only takes effect at the next deploy would be a lie in the interface.
 
 ## 3.4.0 — 2026-09-07
 
-### Datei hochladen statt Pfad tippen — im eigenen Container, weiter über die signierte Route
+### Upload a file instead of typing a path — in a container of its own, still through the signed route
 
-Adrian am 03.09.2026: „Gibt ja nen Statamic Asset Manager, den könnte man doch eigentlich
-nutzen, oder?" Bis hierhin trug eine Datei-Ressource zwei Textfelder, „Dateipfad" und
-„Speicherort", und die Datei musste jemand anders auf die Platte gelegt haben. Jetzt steht dort
-Statamics eigener `assets`-Feldtyp: durchsuchen, hochladen, austauschen.
+Adrian on 2026-09-03: "There is a Statamic Asset Manager, couldn't we actually use that?" Until
+now a file resource carried two text fields, "File path" and "Disk", and somebody else had to
+have put the file on the disk. Now Statamic's own `assets` fieldtype stands there: browse,
+upload, replace.
 
-**Das ist nicht nur ein Feld.** Eine Datei im Asset-Container ist die Frage, ob sie damit frei
-im Web liegt, und ein Lead Magnet hinter Double Opt-in soll genau das nicht. Der Feldtyp hätte
-sich von allein den Container genommen, den die Seite schon hat — bei Statamic im Regelfall
-`public/assets`, mit URL und öffentlicher Sichtbarkeit. Das wäre der Download ohne Bestätigung
-gewesen, und nichts im Control Panel hätte es gesagt.
+**This is not just a field.** A file in an asset container raises the question whether it now lies
+openly on the web, and a lead magnet behind double opt-in is meant to do exactly the opposite.
+The fieldtype would have taken the container the site already has by itself — with Statamic as a
+rule `public/assets`, with a URL and public visibility. That would have been the download without
+confirmation, and nothing in the Control Panel would have said so.
 
-Deshalb legt das Addon einen **eigenen Container** an (`lead_magnets`), auf einer **eigenen
-Platte** (`lead-magnets`), die es selbst definiert: `storage/app/lead-magnets`, ohne `url`, ohne
-`serve`, ohne öffentliche Sichtbarkeit. Damit liegt sie außerhalb des Dokumentwurzelverzeichnisses,
-Laravel legt keine Route darauf, und die signierte Download-Route bleibt der einzige Weg zur Datei.
-Der Container entsteht beim ersten Öffnen des Formulars, nicht durch einen Befehl, den niemand
-ausführt.
+That is why the addon creates a **container of its own** (`lead_magnets`), on a **disk of its
+own** (`lead-magnets`), which it defines itself: `storage/app/lead-magnets`, without `url`,
+without `serve`, without public visibility. That puts it outside the document root, Laravel puts
+no route on it, and the signed download route stays the only way to the file. The container comes
+into being when the form is first opened, not through a command nobody runs.
 
-Belegt statt behauptet: ein Test ruft die Datei über jede öffentliche Adresse ab, die sie haben
-könnte, und bekommt jedes Mal eine Abfuhr — und liefert im selben Test dieselben Bytes über die
-signierte Route aus. Ein zweiter Test zeigt, dass die Warnung greift: auf Laravels `public`-Platte
-sagt das Formular es rot.
+Shown rather than claimed: a test fetches the file through every public address it could have and
+is refused every time — and in the same test serves the same bytes through the signed route. A
+second test shows that the warning bites: on Laravel's `public` disk the form says so in red.
 
-`AssetContainer::private()` reicht dafür nicht. Es liest nur den `url`-Schlüssel und kennt weder
-öffentliche Sichtbarkeit noch eine Wurzel unterhalb von `public/`. Das Addon fragt die weitere
-Frage selbst.
+`AssetContainer::private()` is not enough for this. It reads only the `url` key and knows neither
+public visibility nor a root below `public/`. The addon asks the further question itself.
 
-**Der Link-Weg ist unverändert.** Beide Wege stehen nebeneinander, und die Liste zeigt jetzt neben
-der Pille auch, was sie ausliefert: den Dateinamen oder die Ziel-URL. Ein Datensatz kann in beiden
-Spalten etwas tragen; die Download-Route entscheidet allein nach `delivery_type`, und genau die
-Quelle steht daneben.
+**The link path is unchanged.** Both paths stand side by side, and the listing now shows, beside
+the pill, what it delivers: the file name or the target URL. A record can carry something in both
+columns; the download route decides by `delivery_type` alone, and exactly that source stands
+beside it.
 
-Gespeichert wird weiter ein Pfad auf einer Platte — die Auslieferung ist unberührt. Der Feldtyp
-spricht Asset-IDs; umgepackt wird an dieser einen Naht. Eine ID aus einem fremden Container wird
-abgelehnt, und eine leere Auswahl beim Bearbeiten löscht eine hinterlegte Datei nicht.
+What is stored is still a path on a disk — delivery is untouched. The fieldtype speaks asset IDs;
+the repacking happens at this one seam. An ID from a foreign container is refused, and an empty
+selection while editing does not delete a stored file.
 
-Entfallen: die Eingabefelder „Dateipfad" und „Speicherort". Die Platte kommt jetzt vom Container
-und nicht mehr aus dem Formular.
+Gone: the input fields "File path" and "Disk". The disk now comes from the container and no
+longer from the form.
 
 ## 3.3.1 — 2026-09-03
 
-### Behoben: Fehlerbanner als `Alert`, Löschen ins Kopfmenü
+### Fixed: error banners as `Alert`, delete moved into the header menu
 
-Drei Fehlerbanner waren ein roter `div` auf blankem grauen Panel — die Bannerkomponente des
-Control Panels ist `Alert`. Der Löschknopf trug `variant="danger"`, das Core nur im
-Bestätigungsdialog nutzt; er sitzt jetzt im `…`-Menü.
+Three error banners were a red `div` on a bare grey panel — the Control Panel's banner component
+is `Alert`. The delete button carried `variant="danger"`, which core uses only in the confirm
+dialog; it now sits in the `…` menu.
 
-Icon `refresh` gibt es nicht, jetzt `sync`. Ein unbekannter Name rendert einen leeren Kasten und
-sagt nichts dazu.
+The icon `refresh` does not exist, now `sync`. An unknown name renders an empty box and says
+nothing about it.
 
 ## 3.3.0 — 2026-09-02
 
-### Fixed — gelieferte Werte landeten roh im HTML der Mail
+### Fixed — supplied values landed raw in the mail's HTML
 
-`EmailTemplatesBridge` setzte die Variablen mit `str_replace` in eine
-CP-Vorlage ein, ohne sie zu escapen. Beide Mails dieses Addons gehen an eine
-Adresse, die gerade erst eingetragen und noch von niemandem bestätigt wurde, und
-`{{ email }}` ist genau das, was der Besucher ins Formular geschrieben hat.
-Dieselbe Klasse Fehler wie in `statamic-payments` (`AbandonedReminder`, am
-selben Tag behoben), und dieselbe Lösung:
+`EmailTemplatesBridge` inserted the variables into a CP template with
+`str_replace`, without escaping them. Both of this addon's mails go to an
+address that has only just been entered and confirmed by nobody yet, and
+`{{ email }}` is exactly what the visitor typed into the form. The same class of
+bug as in `statamic-payments` (`AbandonedReminder`, fixed on the same day), and
+the same solution:
 
-- Werte werden beim Einsetzen in den HTML-Körper mit `e()` escaped.
-- **`EmailTemplatesBridge::RAW_VARIABLES`** nennt die Ausnahmen: `confirm_url`
-  und `download_url`. Beides sind Links, die dieses Addon selbst baut, beide
-  stehen in einem `href`, und beide tragen einen Query-String, dessen `&`
-  unversehrt bleiben muss.
-- Die **Betreffzeile** ist kein HTML und wird mit `escape: false` gefüllt; ein
-  `&amp;` im Betreff wäre sichtbarer Schaden statt Schutz.
+- Values are escaped with `e()` when inserted into the HTML body.
+- **`EmailTemplatesBridge::RAW_VARIABLES`** names the exceptions: `confirm_url`
+  and `download_url`. Both are links this addon builds itself, both stand in an
+  `href`, and both carry a query string whose `&` must stay intact.
+- The **subject line** is not HTML and is filled with `escape: false`; an
+  `&amp;` in the subject would be visible damage rather than protection.
 
-Die Vorlage selbst bleibt unangetastet — was ein Redakteur im CP an HTML
-schreibt, ist weiterhin HTML. Escaped wird nur, was von außen eingesetzt wird.
+The template itself stays untouched — what an editor writes as HTML in the CP is
+still HTML. Only what is inserted from outside is escaped.
 
 ## 3.2.0 — 2026-08-29
 
-### Neu: die Zahlen dieses Addons erscheinen in Insights
+### Added: this addon's figures appear in Insights
 
-`statamic-insights` ist ab 1.1.0 keine Umsatzauswertung mehr, sondern die Auswertungs-Schicht der
-Familie: jedes Addon meldet an, was es zählen kann, und bekommt dafür Zeitraum, Vergleich mit dem
-Vorzeitraum, Diagramm, Aufteilungen und zwei fertige Schirme.
+From 1.1.0 `statamic-insights` is no longer a revenue report but the family's reporting layer: an
+addon registers what it can count and gets the period, the comparison against the period before,
+the chart, the breakdowns and two finished screens in return.
 
-Die Kopplung ist in **beide** Richtungen freiwillig. Ohne Insights fehlt hier nichts; ohne dieses
-Addon fehlt dort nur seine Gruppe. `suggest`, nie `require`.
+The coupling is optional in **both** directions. Without Insights nothing here is missing; without
+this addon only its own group is missing over there. `suggest`, never `require`.
 
-Jede Zahl hält sich an die Hausregeln des Vertrags: **null ist nicht null** (eine Quote ohne Nenner
-hat keine Antwort und zeigt keine 0 %), `available()` entscheidet über die Existenz und nie über die
-Daten, Lücken im Verlauf füllt Insights und nicht die Kennzahl, und ein Filter, den eine Zahl nicht
-versteht, wird ignoriert statt zum Fehler.
+Every figure follows the contract's house rules: **null is not zero** (a rate with no denominator
+has no answer and does not print 0 %), `available()` decides existence and never the data, gaps in
+a series are filled by Insights rather than by the metric, and a filter a metric does not
+understand is ignored rather than fatal.
 
-Vier Zahlen: angefordert, bestätigt, heruntergeladen, Bestätigungsquote.
+Four figures: requested, confirmed, downloaded, confirmation rate.
 
-Die Quote misst eine **Kohorte**: von den Anforderungen dieses Zeitraums der Anteil, der bestätigt
-hat, gezählt am Tag der Anforderung — auch wenn die Bestätigung später kam. Zähler und Nenner liegen
-dabei in verschiedenen Zeitzonen auf der Platte, weil die Bestätigung in der Tabelle des
-Geschwister-Addons steht. Deshalb nennt jede Seite ihre eigene Zone und teilt sich den Rest des
-Fensters; sonst driften die beiden Hälften einer Quote auseinander.
+The rate measures a **cohort**: of the requests in this period, the share that confirmed, counted
+on the day of the request — even when the confirmation came later. Numerator and denominator sit
+in different time zones on disk, because the confirmation lives in the sibling addon's table. Each
+side therefore names its own zone and shares the rest of the window; otherwise the two halves of a
+rate drift apart.
 
-### Behoben: eine Zahl zählt nur noch die aktive Marke
+### Fixed: a figure counts the current brand only
 
-Beim Bauen der Anbindung bekam diese Frage in der Familie vier verschiedene Antworten, und auf einem
-Schirm nebeneinander ist das schlimmer als gar keine: eine Kachel zeigte den Umsatz dreier fremder
-Marken, während die daneben korrekt filterte. Die Regel steht jetzt einmal in
-`TableMetric::brandScoped()`, als Abschrift von `BrandScope::apply()`; hier wird nur noch die Spalte
-genannt, und Zahl, Diagramm und jede Aufteilung verengen gemeinsam.
+While the integration was being built this question got four different answers within the family,
+and side by side on one screen that is worse than none: one tile showed three other brands'
+turnover while its neighbour filtered correctly. The rule now lives once, in
+`TableMetric::brandScoped()`, transcribed from `BrandScope::apply()`; here only the column is
+named, and the figure, the chart and every breakdown narrow together.
 
-Ist keine Marke gewählt, liest die Kachel **0 und bleibt stehen**. Ein Leser versteht eine Null;
-eine verschwundene Kachel bemerkt er nicht.
+With no brand selected the tile reads **0 and stays**. A reader can make sense of a zero; a tile
+that is not there he cannot notice.
 
 ## 3.1.0 — 2026-08-24
 
-### Fixed — beide Mails gingen unter der Identität des Hosts raus
+### Fixed — both mails went out under the host's identity
 
-`DeliveryService` rief `Mail::to()`, also den prozessweiten Vorgabe-Mailer.
-Auf einem Host mit mehreren Marken heißt das: die Bestätigung und die
-Auslieferung von Marke A gehen über das Relay von Marke B. Das Relay lehnt ab,
-weil die Domain dort nicht verifiziert ist — oder es geht durch, und der Leser
-bekommt Post von einem Absender, von dem er nie gehört hat.
+`DeliveryService` called `Mail::to()`, that is, the process-wide default mailer.
+On a host with several brands that means: brand A's confirmation and delivery go
+out through brand B's relay. The relay refuses, because the domain is not
+verified there — or it goes through, and the reader gets mail from a sender he
+has never heard of.
 
-Das wiegt hier schwerer als anderswo: **beide Mails gehen an jemanden aus der
-Öffentlichkeit, der gerade seine Adresse hergegeben hat.**
+That weighs more here than elsewhere: **both mails go to somebody from the
+public who has just handed over his address.**
 
-Beide Wege gehen jetzt durch `Sending\BrandMailer`, dieselbe Tür wie in
-marketing, notifications, preference-center, automations, leadhub und
-webhook-manager. Der Vertrag steht in `statamic-brand-context` ^1.8.
+Both paths now go through `Sending\BrandMailer`, the same door as in marketing,
+notifications, preference-center, automations, leadhub and webhook-manager. The
+contract is in `statamic-brand-context` ^1.8.
 
-**Für Ein-Marken-Installationen ändert sich nichts.**
+**For single-brand installations nothing changes.**
 
-**Neu:** verweigert die Marken-Identität, wird nicht gesendet und der Grund
-landet am Grant (`delivery_sender_refused` / `confirmation_sender_refused`).
-„Die Mail kam nie an" hat damit eine Ursache statt ein Rätsel zu sein.
+**New:** if the brand identity is refused, nothing is sent and the reason lands
+on the grant (`delivery_sender_refused` / `confirmation_sender_refused`). "The
+mail never arrived" thereby has a cause instead of being a riddle.
 
 
 All notable changes to `goldnead/statamic-lead-magnets` are documented here.
