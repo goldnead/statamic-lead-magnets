@@ -8,6 +8,7 @@ use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
 use Goldnead\LeadMagnets\Support\MagnetAssets;
+use Goldnead\LeadMagnets\Support\Setup;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Statamic\Assets\Asset;
@@ -23,6 +24,13 @@ class ResourceController extends Controller
     public function index(Request $request)
     {
         $this->authorizeOrFail($request, 'view lead magnets');
+
+        // `entitlements` belongs to a sibling addon and is listed anyway: the
+        // two counts below are a join into it, so a half-migrated install would
+        // crash on the foreign table just as readily as on our own.
+        if ($setup = Setup::guard(__('lead-magnets::nav.lead_magnets'), 'lead_magnet_resources', 'lead_magnet_grants', 'entitlements')) {
+            return $setup;
+        }
 
         // Two queries for the whole page rather than one per resource. State is
         // not a column any more, so the count runs through entitlements' own
@@ -109,6 +117,13 @@ class ResourceController extends Controller
     public function show(Request $request, int $resource)
     {
         $this->authorizeOrFail($request, 'view lead magnets');
+
+        // One table more than the listing: this page counts the downloads per
+        // grant, and the guard is only worth anything if it names every table
+        // the page will actually reach for.
+        if ($setup = Setup::guard(__('lead-magnets::nav.lead_magnets'), 'lead_magnet_resources', 'lead_magnet_grants', 'lead_magnet_downloads', 'entitlements')) {
+            return $setup;
+        }
 
         $record = Resource::query()->find($resource);
         abort_if($record === null, 404);

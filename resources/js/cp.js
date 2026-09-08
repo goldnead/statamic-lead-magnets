@@ -9,9 +9,11 @@
 import ResourcesIndex from './pages/Resources/Index.vue';
 import ResourcesCreate from './pages/Resources/Create.vue';
 import ResourcesShow from './pages/Resources/Show.vue';
+import SetupRequired from './pages/SetupRequired.vue';
 
 Statamic.booting(() => {
     Statamic.$inertia.register('lead-magnets::Resources/Index', ResourcesIndex);
     Statamic.$inertia.register('lead-magnets::Resources/Create', ResourcesCreate);
     Statamic.$inertia.register('lead-magnets::Resources/Show', ResourcesShow);
+    Statamic.$inertia.register('lead-magnets::SetupRequired', SetupRequired);
 });
