@@ -81,9 +81,11 @@ class ServiceProvider extends AddonServiceProvider
         // the packaged default`, ab brand-context 1.13.0.
         //
         // In `register()` ist ausserdem die Stelle, an der Laravel das Merge
-        // ohnehin erwartet, und an der es die siebzehn Geschwister-Addons der
-        // Suite auch machen. Nur `publishes()` bleibt im Boot: das braucht die
-        // Pfad-Helfer der Anwendung.
+        // ohnehin erwartet, und an der es achtzehn der neunzehn
+        // Geschwister-Addons mit Einstellungs-Abschnitt auch machen (Stand
+        // 08.09.2026; einzige Ausnahme ist `statamic-marketing`, das denselben
+        // Defekt noch offen hat). Nur `publishes()` bleibt im Boot: das braucht
+        // die Pfad-Helfer der Anwendung.
         $this->mergeConfigFrom(__DIR__.'/../config/lead-magnets.php', 'lead-magnets');
 
         $langPath = __DIR__.'/../resources/lang';
