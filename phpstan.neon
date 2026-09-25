@@ -60,3 +60,6 @@ parameters:
         -
             identifier: property.defaultValue
             path: src/ServiceProvider.php
+            # Newer Statamic annotates $vite with the keyed shape; CI resolves
+            # the newer, the lock file the older. Silent when it does not match.
+            reportUnmatched: false
