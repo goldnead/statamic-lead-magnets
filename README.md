@@ -90,6 +90,39 @@ that is created the first time you open the form. Upload there, or pick a file
 already in it. The container is **not** one of the site's existing ones and that
 is deliberate — see *Where the files live* below.
 
+#### Several files in one resource
+
+The *Files* field is a list: one row per file, each with a file picker, an
+optional **label** and an optional **group**. Drag the rows to reorder them. Add
+as many as you need; nothing is typed from memory, the file is always picked.
+
+Delivery then looks like this:
+
+- **The delivery mail lists every file**, grouped, each with its own signed,
+  expiring link, plus one link to a page that shows the same list. Groups appear
+  in the order of their first row; files keep the list order inside a group;
+  files without a group come first or wherever their first row sits, without a
+  heading. A row without a label shows the file name.
+- **Each link serves exactly one file**, named `Group - Label.ext` so the same
+  label in three groups (`SATB - Score`, `SSA - Score`) does not collide in the
+  reader's downloads folder. Links expire and are signed like the single link
+  always was; the file key in the URL is part of the signature.
+- **The download cap counts per file** for a list (nine files with a cap of
+  three: each file can be fetched three times). A single file is capped per
+  grant as before.
+- **The mail template variable `{{ file_list }}`** carries the grouped list as
+  HTML for templates authored in `goldnead/statamic-email-templates`;
+  `{{ download_url }}` is then the overview page.
+- A file keeps its key when the list is reordered or relabelled, so links already
+  mailed keep serving the file they were sent for. Removing a file from the list
+  retires its links (404).
+
+**Existing single-file resources need no change and no data migration.** A
+resource without a list is read as a list of one (`Resource::fileList()`), keeps
+its direct link `/download/{grant}`, its mail without a list and its file name.
+A list of one file behaves the same. The first file of a list is also kept in
+`file_path`, so anything reading that column still finds a working file.
+
 *Link* forwards the visitor to a URL you hold elsewhere. Both go through the
 same signed route, so both are counted, capped and audited identically; the
 listing names which of the two applies and what it points at.
@@ -160,7 +193,8 @@ Event::listen(ResourceConfirmed::class, function (ResourceConfirmed $event) {
 |---|---|---|
 | POST | `/!/lead-magnets/request` | `lead-magnets.request` |
 | GET | `/!/lead-magnets/confirm/{token}` | `lead-magnets.confirm` |
-| GET | `/!/lead-magnets/download/{grant}` | `lead-magnets.download` (signed) |
+| GET | `/!/lead-magnets/download/{grant}` | `lead-magnets.download` (signed; the file, or the overview page for a list) |
+| GET | `/!/lead-magnets/download/{grant}/{file}` | `lead-magnets.download.file` (signed; one file of a list) |
 
 The prefix is configurable under `lead-magnets.routes.prefix`.
 

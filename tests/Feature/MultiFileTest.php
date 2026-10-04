@@ -206,6 +206,16 @@ it('serves the file a link names and no other', function () {
     expect($response->streamedContent())->toBe('content of '.$second['path']);
 });
 
+it('names each download by group and label, so the same label in three groups stays three files', function () {
+    $resource = makeMultiResource();
+    $grant = requestAndLoadGrant($resource);
+    $links = app(DownloadLink::class);
+
+    // barayeFiles() row 0 is SATB / "Partitur (PDF)", row 1 is SSA / "Partitur (PDF)".
+    $this->get($links->forFile($grant, $resource->fileList()[0]['key']))->assertDownload('SATB - Partitur PDF.dat');
+    $this->get($links->forFile($grant, $resource->fileList()[1]['key']))->assertDownload('SSA - Partitur PDF.dat');
+});
+
 it('groups by first appearance and keeps list order inside a group', function () {
     $resource = makeMultiResource();
     $grant = requestAndLoadGrant($resource);

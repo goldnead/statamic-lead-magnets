@@ -105,13 +105,14 @@ class DownloadController extends Controller
         $disk = Storage::disk($resource->disk());
 
         if ($entry !== null && $resource->hasMultipleFiles()) {
-            // A list's files are named by their label, because "Partitur" with
-            // the voicing in the group is what the reader knows it as; the
+            // A list's files are named by group and label — "SATB - Partitur" —
+            // because the same label recurs in every group, and three files
+            // all called "Partitur.pdf" land in a downloads folder as
+            // "Partitur.pdf", "Partitur (1).pdf" and "Partitur (2).pdf". The
             // extension still comes from the path.
-            return $disk->download(
-                $entry['path'],
-                $this->filename($entry['label'] ?? pathinfo($entry['path'], PATHINFO_FILENAME), $entry['path']),
-            );
+            $name = trim(($entry['group'] ? $entry['group'].' - ' : '').($entry['label'] ?? pathinfo($entry['path'], PATHINFO_FILENAME)));
+
+            return $disk->download($entry['path'], $this->filename($name, $entry['path']));
         }
 
         $path = $entry['path'] ?? $resource->file_path;
