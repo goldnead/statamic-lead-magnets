@@ -339,6 +339,30 @@ it('stops an already mailed link from confirming into the list once the resource
         ->and(FakeMarketingService::$subscriptions[0]['context'])->not->toHaveKey('skip_confirmation');
 });
 
+it('keeps the record of a confirmed consent when the address asks again', function () {
+    $resource = coupledResource();
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+    $this->post(route('lead-magnets.confirm.store', ['token' => tokenFromLastConfirmationMail()]))->assertOk();
+
+    // Anybody can type the address into the form again.
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com', ['list_consent' => ['forged' => true]]);
+
+    expect(Grant::query()->sole()->meta['list_consent']['confirmed_at'] ?? null)->not->toBeNull()
+        ->and(Grant::query()->sole()->meta['list_consent'])->not->toHaveKey('forged');
+});
+
+it('does not warn about a template that shows the disclosure with quotes in it', function () {
+    Log::spy();
+
+    FakeEmailTemplatesFacade::$templates['shows'] = new FakeEmailTemplate('<p>{{ list_consent_text }}</p><a href="{{ confirm_url }}">Ja</a>');
+
+    coupledResource(['confirmation_template' => 'shows', 'list_consent_text' => 'Du bekommst den "Newsletter" & kannst dich abmelden.']);
+
+    app(LeadMagnetsManager::class)->request(Resource::query()->sole(), 'reader@example.com');
+
+    Log::shouldNotHaveReceived('warning');
+});
+
 it('names a confirmation template that leaves the disclosure out', function () {
     Log::spy();
 

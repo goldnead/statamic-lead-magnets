@@ -112,7 +112,9 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(BrandMailer::class);
 
         $this->app->singleton(SiblingBridges::class);
-        $this->app->singleton(ListConsentPress::class);
+        // Scoped: one per request or job, so a long-lived worker carries
+        // nothing from one confirmation into the next.
+        $this->app->scoped(ListConsentPress::class);
     }
 
     /**

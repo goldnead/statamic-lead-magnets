@@ -67,13 +67,8 @@ class GrantService
             ?? new Grant(['resource_id' => $resource->id, 'email' => $email, 'attempt' => 1]);
 
         $grant->requested_at = Carbon::now();
-        $grant->meta = array_merge($grant->meta ?? [], $meta);
-
-        // The disclosure copy belongs to one confirmation mail and nothing
-        // else. Whatever an earlier mail (or a caller's meta) left is dropped
-        // here, on every path, and only the path that sends a confirmation
-        // writes a fresh one (see withListConsent()).
-        $grant->meta = array_diff_key($grant->meta, ['list_consent' => true]);
+        // The disclosure copy is this addon's to write, never a caller's.
+        $grant->meta = array_merge($grant->meta ?? [], array_diff_key($meta, ['list_consent' => true]));
         $grant->save();
         $grant->setRelation('resource', $resource);
 
@@ -115,7 +110,14 @@ class GrantService
             // No confirmation asked for: the grant is born pending and claimed
             // in the same call, so activation runs through the one atomic path
             // and the delivery listener fires exactly once here too.
-            $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
+            // No confirmation mail, so no disclosure copy: an earlier one (a
+            // lapsed period, a resource that used to confirm) would otherwise
+            // read as consent to a mail that was never sent.
+            $grant->forceFill([
+                'token_hash' => null,
+                'confirm_expires_at' => null,
+                'meta' => array_diff_key($grant->meta ?? [], ['list_consent' => true]),
+            ])->save();
 
             ResourceRequested::dispatch($grant);
 
@@ -356,7 +358,7 @@ class GrantService
      */
     protected function withListConsent(Grant $grant, Resource $resource): array
     {
-        $meta = $grant->meta ?? [];
+        $meta = array_diff_key($grant->meta ?? [], ['list_consent' => true]);
 
         if ($resource->couplesListToConfirmation()) {
             $meta['list_consent'] = [

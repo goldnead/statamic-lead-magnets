@@ -67,7 +67,10 @@ class DeliveryService
         // that promises a download and is silent about the newsletter is the
         // opposite of the point. Named, so somebody adds the variable.
         if ($rendered !== null && ($consent = $grant->listConsent()) !== null
-            && ! str_contains($rendered['html'], e($consent['text']))) {
+            && ! str_contains(
+                html_entity_decode(strip_tags($rendered['html']), ENT_QUOTES | ENT_HTML5),
+                $consent['text'],
+            )) {
             Log::warning('statamic-lead-magnets: the confirmation template ['.$grant->resource?->mailTemplate('confirmation').'] for ['.$grant->resource?->handle.'] does not show the newsletter disclosure. Add {{ list_consent_text }} to it.');
         }
 
