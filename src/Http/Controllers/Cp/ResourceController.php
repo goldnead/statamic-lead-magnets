@@ -10,6 +10,7 @@ use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
 use Goldnead\LeadMagnets\Support\MagnetAssets;
 use Goldnead\LeadMagnets\Support\Setup;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Statamic\Assets\Asset;
 use Statamic\CP\Column;
@@ -55,9 +56,11 @@ class ResourceController extends Controller
                     // data does not back. The download route branches on
                     // `delivery_type` and on nothing else, so naming the source
                     // it will actually reach for settles the question on screen.
-                    'delivery_source' => $resource->isLink()
-                        ? $resource->link_url
-                        : ($resource->file_path === null ? null : basename($resource->file_path)),
+                    'delivery_source' => match (true) {
+                        $resource->isLink() => $resource->link_url,
+                        $resource->hasMultipleFiles() => __('lead-magnets::resources.files_count', ['count' => count($resource->fileList())]),
+                        default => $resource->file_path === null ? null : basename($resource->file_path),
+                    },
                     'requires_confirmation' => $resource->requires_confirmation,
                     'published' => $resource->published,
                     'active' => (int) ($active[$resource->id] ?? 0),
@@ -257,22 +260,27 @@ class ResourceController extends Controller
     }
 
     /**
-     * The file picker: Statamic's own `assets` fieldtype over this addon's
-     * container, as a one-field blueprint the Vue page renders through a
-     * `PublishContainer`.
+     * The file list: Statamic's own `grid` fieldtype, a group on the outer
+     * level and a grid of core `assets` rows with a label underneath, over this
+     * addon's container, as a one-field blueprint the Vue page renders through
+     * a `PublishContainer`.
      *
-     * The core fieldtype rather than a path to type by hand, because it is what
+     * Core fieldtypes rather than a path to type by hand, because they are what
      * an editor already knows from every other screen — browsing, uploading,
-     * renaming and the folder tree come with it, and none of them are worth
-     * rebuilding. It is also the reason the container has to exist before this
-     * page renders, so it is created here.
+     * renaming, the folder tree, adding, removing and dragging rows to reorder
+     * all come with them, and none of them are worth rebuilding. It is also the
+     * reason the container has to exist before this page renders, so it is
+     * created here. Nothing in a row has to be remembered: the file is picked,
+     * the label defaults to the file name, the group is a name the editor
+     * chooses.
      *
-     * The stored value stays what it always was, a path on a disk, because
-     * that is what `DownloadController` streams. The fieldtype speaks asset ids
-     * and lists; the conversion happens at this one seam and nowhere else.
-     * A path that no longer resolves to an asset — a file deleted, or a magnet
-     * whose path was set by hand before this existed — preprocesses to an empty
-     * selection rather than an error.
+     * The stored value stays what it always was, paths on a disk, because that
+     * is what `DownloadController` streams. The fieldtype speaks asset ids and
+     * lists; the conversion happens at this one seam and nowhere else. A path
+     * that no longer resolves to an asset — a file deleted, or a path set by
+     * hand before this existed — preprocesses to an empty selection in its row
+     * rather than an error. A resource that predates the list shows its one
+     * file as a one-row list.
      *
      * @return array{blueprint: array<string, mixed>, values: array<string, mixed>, meta: array<string, mixed>}
      */
@@ -281,19 +289,74 @@ class ResourceController extends Controller
         $this->assets->ensureContainer();
 
         $blueprint = Blueprint::makeFromFields([
-            'file_asset' => [
-                'type' => 'assets',
-                'display' => __('lead-magnets::resources.file'),
-                'instructions' => __('lead-magnets::resources.file_instructions'),
-                'container' => $this->assets->containerHandle(),
-                'max_files' => 1,
-                'mode' => 'list',
+            // The shape of statamic-courses' material downloads: a group once,
+            // its files underneath. Typing a group name per file would repeat
+            // it nine times for nine files, and a typo in one of them would
+            // quietly open a tenth group.
+            'groups' => [
+                'type' => 'grid',
+                'display' => __('lead-magnets::resources.files'),
+                'instructions' => __('lead-magnets::resources.files_instructions'),
+                'mode' => 'stacked',
+                'reorderable' => true,
+                'add_row' => __('lead-magnets::resources.groups_add'),
+                'fields' => [
+                    [
+                        'handle' => 'group',
+                        'field' => [
+                            'type' => 'text',
+                            'display' => __('lead-magnets::resources.files_group'),
+                            'instructions' => __('lead-magnets::resources.files_group_instructions'),
+                        ],
+                    ],
+                    [
+                        'handle' => 'files',
+                        'field' => [
+                            'type' => 'grid',
+                            'display' => __('lead-magnets::resources.files_files'),
+                            'mode' => 'table',
+                            'reorderable' => true,
+                            'add_row' => __('lead-magnets::resources.files_add'),
+                            'fields' => [
+                                [
+                                    'handle' => 'file',
+                                    'field' => [
+                                        'type' => 'assets',
+                                        'display' => __('lead-magnets::resources.files_file'),
+                                        'container' => $this->assets->containerHandle(),
+                                        'max_files' => 1,
+                                        'mode' => 'list',
+                                        'width' => 75,
+                                    ],
+                                ],
+                                [
+                                    'handle' => 'label',
+                                    'field' => [
+                                        'type' => 'text',
+                                        'display' => __('lead-magnets::resources.files_label'),
+                                        'width' => 25,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ],
         ]);
 
+        // The stored list is flat; the form shows it as blocks. Groups come in
+        // order of their first file, so a list written before the blocks existed
+        // (or by hand) reads the same way the delivery mail groups it.
+        $blocks = [];
+
+        foreach ($record?->fileList() ?? [] as $file) {
+            $blocks[$file['group'] ?? "\0"] ??= ['group' => $file['group'], 'files' => []];
+            $blocks[$file['group'] ?? "\0"]['files'][] = ['file' => [$file['path']], 'label' => $file['label']];
+        }
+
         $fields = $blueprint
             ->fields()
-            ->addValues(['file_asset' => $record?->file_path ? [$record->file_path] : []])
+            ->addValues(['groups' => array_values($blocks)])
             ->preProcess();
 
         return [
@@ -364,11 +427,18 @@ class ResourceController extends Controller
             // has no file yet: an existing one keeps the file it has when the
             // selection comes back empty, so a title can be edited without
             // re-uploading (see `attributes()`).
+            //
+            // `file_asset` is the single-file shorthand of old and still works:
+            // it is read as a list of one. The list itself is `files`.
             'file_asset' => [
                 'nullable',
                 'string',
                 'max:255',
-                $existing?->file_path === null ? 'required_if:delivery_type,file' : 'sometimes',
+                $existing?->file_path === null
+                    ? Rule::requiredIf(fn () => $request->input('delivery_type') === 'file'
+                        && empty($request->input('files'))
+                        && $this->groupFileIds((array) $request->input('groups')) === [])
+                    : 'sometimes',
                 // A trust boundary, not a formality. The id arrives from the
                 // browser and decides which file this resource hands out, so an
                 // id naming an asset in some other container — the public one a
@@ -380,6 +450,50 @@ class ResourceController extends Controller
                     }
                 },
             ],
+            // The form sends `groups`: a group once, its files underneath. The
+            // flat `files` list is what the first release took and is still
+            // accepted, so a script written against it keeps working.
+            'groups' => [
+                'nullable',
+                'array',
+                'max:100',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    $this->failOnDuplicates($this->groupFileIds((array) $value), $fail);
+                },
+            ],
+            'groups.*.group' => ['nullable', 'string', 'max:191'],
+            'groups.*.files' => ['nullable', 'array', 'max:200'],
+            'groups.*.files.*.file' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    if ($this->assetInContainer($value) === null) {
+                        $fail(__('lead-magnets::resources.file_unknown'));
+                    }
+                },
+            ],
+            'groups.*.files.*.label' => ['nullable', 'string', 'max:191'],
+            'files' => [
+                'nullable',
+                'array',
+                'max:200',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    $this->failOnDuplicates(array_filter(array_column((array) $value, 'file')), $fail);
+                },
+            ],
+            'files.*.file' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    if ($this->assetInContainer($value) === null) {
+                        $fail(__('lead-magnets::resources.file_unknown'));
+                    }
+                },
+            ],
+            'files.*.label' => ['nullable', 'string', 'max:191'],
+            'files.*.group' => ['nullable', 'string', 'max:191'],
             'link_url' => ['nullable', 'url', 'max:2000', 'required_if:delivery_type,link'],
             'requires_confirmation' => ['nullable', 'boolean'],
             'published' => ['nullable', 'boolean'],
@@ -400,28 +514,32 @@ class ResourceController extends Controller
     {
         $isFile = $data['delivery_type'] === Resource::TYPE_FILE;
 
-        // The picker's asset id back to the path the download route streams.
-        // Validation has already established that the asset exists and belongs
-        // to this addon's container, so the disk is the container's by
+        // The picker's asset ids back to the paths the download route streams.
+        // Validation has already established that every asset exists and
+        // belongs to this addon's container, so the disk is the container's by
         // construction rather than by something a form sent.
-        $picked = $isFile
-            ? $this->assetInContainer($data['file_asset'] ?? null)?->path()
-            : null;
+        $rows = $isFile ? $this->fileRows($data) : [];
 
-        // An empty selection on an existing record does not clear its file.
+        // An empty list on an existing record does not clear its file.
         // A resource whose path was set by hand before the picker existed
         // points outside the container, so the picker cannot show it and comes
         // back empty through no fault of the editor — emptying the column on
         // the save of an unrelated field would break a working download in
         // silence. Changing the file means choosing another one.
-        $keep = $isFile && $picked === null && $existing?->file_path !== null;
+        $keep = $isFile && $rows === [] && $existing?->file_path !== null;
+
+        $files = $this->fileList($rows, $existing);
 
         return [
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'delivery_type' => $data['delivery_type'],
-            'file_path' => $keep ? $existing->file_path : $picked,
-            'file_disk' => $keep ? $existing->file_disk : ($picked === null ? null : $this->assets->diskHandle()),
+            // The first file stays in the old column, so anything that reads
+            // `file_path` — another addon, a report, a rollback to the previous
+            // release — still finds a working file.
+            'file_path' => $keep ? $existing->file_path : ($files[0]['path'] ?? null),
+            'file_disk' => $keep ? $existing->file_disk : ($files === [] ? null : $this->assets->diskHandle()),
+            'files' => $keep ? $existing->files : ($files === [] ? null : $files),
             'link_url' => $data['delivery_type'] === Resource::TYPE_LINK ? ($data['link_url'] ?? null) : null,
             'requires_confirmation' => (bool) ($data['requires_confirmation'] ?? true),
             'published' => (bool) ($data['published'] ?? true),
@@ -431,6 +549,109 @@ class ResourceController extends Controller
             'tags' => $data['tags'] ?? [],
             'marketing_list' => $data['marketing_list'] ?? null,
         ];
+    }
+
+    /**
+     * Every file id in the group blocks, in order.
+     *
+     * @param  array<int|string, mixed>  $groups
+     * @return list<string>
+     */
+    protected function groupFileIds(array $groups): array
+    {
+        $ids = [];
+
+        foreach ($groups as $block) {
+            foreach ((array) (is_array($block) ? ($block['files'] ?? []) : []) as $row) {
+                if (is_array($row) && is_string($row['file'] ?? null) && $row['file'] !== '') {
+                    $ids[] = $row['file'];
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * The same file twice would be two rows with one key's worth of meaning,
+     * and a download cap counted against whichever came first.
+     *
+     * @param  array<int|string, mixed>  $ids
+     */
+    protected function failOnDuplicates(array $ids, callable $fail): void
+    {
+        if (count($ids) !== count(array_unique($ids))) {
+            $fail(__('lead-magnets::resources.files_duplicate'));
+        }
+    }
+
+    /**
+     * The submitted blocks flattened, then the flat list, then the single-file
+     * shorthand — whichever the request used.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{file: string, label: ?string, group: ?string}>
+     */
+    protected function fileRows(array $data): array
+    {
+        $rows = [];
+
+        foreach ((array) ($data['groups'] ?? []) as $block) {
+            foreach ((array) ($block['files'] ?? []) as $row) {
+                $rows[] = [
+                    'file' => (string) $row['file'],
+                    'label' => $row['label'] ?? null,
+                    'group' => $block['group'] ?? null,
+                ];
+            }
+        }
+
+        foreach ($rows === [] ? (array) ($data['files'] ?? []) : [] as $row) {
+            $rows[] = [
+                'file' => (string) $row['file'],
+                'label' => $row['label'] ?? null,
+                'group' => $row['group'] ?? null,
+            ];
+        }
+
+        if ($rows === [] && ($data['file_asset'] ?? null)) {
+            $rows[] = ['file' => (string) $data['file_asset'], 'label' => null, 'group' => null];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The rows as the list stored on the resource: paths, not ids, in the
+     * order the editor arranged them.
+     *
+     * A file keeps its key when it was in the list before, matched by path. The
+     * key is what a signed link names, so a reorder or a relabel must not
+     * change it, or every link already in somebody's mailbox would stop
+     * pointing at the file it was sent for. A new file gets a new key.
+     *
+     * @param  list<array{file: string, label: ?string, group: ?string}>  $rows
+     * @return list<array{key: string, path: string, label: string|null, group: string|null}>
+     */
+    protected function fileList(array $rows, ?Resource $existing): array
+    {
+        $known = collect($existing?->fileList() ?? [])->pluck('key', 'path');
+
+        return collect($rows)->map(function (array $row) use ($known) {
+            $path = (string) $this->assetInContainer($row['file'])?->path();
+            $label = trim((string) $row['label']);
+            $group = trim((string) $row['group']);
+
+            return [
+                // The legacy item's placeholder key is never stored.
+                'key' => ($known[$path] ?? null) && $known[$path] !== 'main'
+                    ? (string) $known[$path]
+                    : strtolower(Str::random(8)),
+                'path' => $path,
+                'label' => $label === '' ? null : $label,
+                'group' => $group === '' ? null : $group,
+            ];
+        })->values()->all();
     }
 
     /** @return array<int, array<string, mixed>> */

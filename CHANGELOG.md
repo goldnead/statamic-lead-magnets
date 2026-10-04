@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased (proposed: 3.7.0, minor)
+
+### Several files per resource
+
+A resource carries an ordered list of files, each with a label and a group. The delivery mail lists all
+of them grouped, every file with its own signed, expiring link, and the plain download link opens an
+overview page with the same list. The Control Panel edits the list with core's grid and asset fields,
+laid out like the downloads of a statamic-courses material: a group once, its files underneath
+("Add group" / "Add file"), each file picked and optionally labelled, drag to reorder.
+
+- Download names are `Title - Group - Label.ext`, with a German-spelled ASCII fallback (`Übe` → `Uebe`).
+- In the mail and on the page every file is its own 44px-high row.
+- **Republish published mail views.** A delivery view published into your site, or an email-templates
+  template written before the list, does not list the files. Republish the views or add `{{ file_list }}`;
+  the log carries a warning when a multi-file delivery goes out through such a template.
+- The stored list stays flat; a list saved while this was in development reads as group blocks.
+
+- Existing single-file resources are unchanged and need no data migration: a resource without a list is
+  read as a list of one, keeps its direct link and its file name.
+- New migration `add_files_to_lead_magnet_resources_table`: `files` (JSON, null on every existing row)
+  and `file_key` on downloads. Run `php artisan migrate`.
+- New signed route `lead-magnets.download.file` (`/download/{grant}/{file}`). The file key is part of
+  the signature and stays stable across reordering.
+- With a list, `max_downloads` counts per file instead of per grant.
+- Email-templates: the new variable `{{ file_list }}` (grouped list as HTML).
+- The form still accepts the old `file_asset` field as a list of one.
+
+### Fixed
+
+- The plain-text part of the confirmation and delivery mails HTML-escaped the signed URL, so `&` became
+  `&amp;` and the link in the text part answered 403. Text views now write the URL as is.
+
 ## 3.6.1 — 2026-09-25
 
 ### Fixed

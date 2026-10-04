@@ -158,11 +158,32 @@ class Grant extends Model
         return $this->confirm_expires_at !== null && $this->confirm_expires_at->isPast();
     }
 
+    /**
+     * Whether the cap is used up for the grant as a whole.
+     *
+     * With a list of files the cap belongs to each file, not to the grant:
+     * nine files and a cap of three would otherwise lock a reader out after the
+     * third. So the grant is never exhausted as a whole then, and
+     * {@see self::downloadsExhaustedFor()} answers per file.
+     */
     public function downloadsExhausted(): bool
     {
+        if ($this->resource?->hasMultipleFiles()) {
+            return false;
+        }
+
         $max = $this->resource?->maxDownloads();
 
         return $max !== null && $this->download_count >= $max;
+    }
+
+    /** Whether one file of a multi-file resource has reached the cap. */
+    public function downloadsExhaustedFor(string $fileKey): bool
+    {
+        $max = $this->resource?->maxDownloads();
+
+        return $max !== null
+            && $this->downloads()->where('file_key', $fileKey)->count() >= $max;
     }
 
     /**

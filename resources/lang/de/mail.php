@@ -11,5 +11,6 @@ return [
     'delivery_greeting' => 'Hallo,',
     'delivery_body' => 'Hier ist ":title", wie angefragt.',
     'delivery_cta' => 'Herunterladen',
+    'delivery_all_on_one_page' => 'Alle Dateien auf einer Seite',
     'delivery_expiry' => 'Der Link ist persönlich und läuft ab. Frag einfach neu an, dann kommt ein frischer.',
 ];

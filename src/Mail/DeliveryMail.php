@@ -22,6 +22,8 @@ class DeliveryMail extends Mailable
         public string $downloadUrl,
         public ?string $renderedHtml = null,
         public ?string $renderedSubject = null,
+        /** @var list<array{name: string|null, files: list<array{key: string, label: string, url: string}>}>|null */
+        public ?array $groups = null,
     ) {}
 
     public function build(): self
@@ -41,10 +43,12 @@ class DeliveryMail extends Mailable
             'grant' => $this->grant,
             'resource' => $resource,
             'downloadUrl' => $this->downloadUrl,
+            'groups' => $this->groups,
         ])->text('lead-magnets::mail.delivery-text', [
             'grant' => $this->grant,
             'resource' => $resource,
             'downloadUrl' => $this->downloadUrl,
+            'groups' => $this->groups,
         ]);
     }
 }

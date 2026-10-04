@@ -10,6 +10,7 @@ use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Everything that leaves the building by mail.
@@ -98,18 +99,35 @@ class DeliveryService
             return false;
         }
 
+        // For a resource with a list of files the one `download_url` is the
+        // overview page, and `groups` carries every file with its own signed
+        // link, so the mail is complete without the page. A single file keeps
+        // the one direct link and no list.
         $url = $this->links->for($grant);
+        $groups = $grant->resource?->hasMultipleFiles() ? $this->links->groupedFor($grant) : null;
+        /** @var view-string $fileGroupsView */
+        $fileGroupsView = 'lead-magnets::partials.file-groups';
 
         $rendered = $this->templates->render(
             (string) config('lead-magnets.mail.delivery_template', ''),
-            $this->variables($grant) + ['download_url' => $url],
+            $this->variables($grant) + [
+                'download_url' => $url,
+                // Rendered by Blade, which escapes labels and group names; the
+                // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
+                'file_list' => $groups === null ? '' : app('view')->make($fileGroupsView, ['groups' => $groups])->render(),
+            ],
         );
+
+        if ($groups !== null) {
+            $this->warnWhenTemplateIgnoresList($grant, $rendered, $groups);
+        }
 
         $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
             $grant,
             $url,
             $rendered['html'] ?? null,
             $rendered['subject'] ?? null,
+            $groups,
         ));
 
         if (! $sent) {
@@ -123,6 +141,44 @@ class DeliveryService
         ResourceDelivered::dispatch($grant);
 
         return true;
+    }
+
+    /**
+     * Say so in the log when the mail goes out without the list.
+     *
+     * A delivery view published into the host before files had a list, or an
+     * email-templates template written for one link, has no place for nine
+     * files: the mail would say "Download" with one link to an overview page —
+     * which still works, but is not what the editor built the list for, and
+     * nothing on screen says why. The warning names the fix.
+     *
+     * @param  array{html: string, subject: string|null}|null  $rendered
+     * @param  list<array{name: string|null, files: list<array{key: string, label: string, url: string}>}>  $groups
+     */
+    protected function warnWhenTemplateIgnoresList(Grant $grant, ?array $rendered, array $groups): void
+    {
+        $firstKey = $groups[0]['files'][0]['key'] ?? null;
+
+        if ($firstKey === null) {
+            return;
+        }
+
+        $handle = (string) $grant->resource?->handle;
+
+        if ($rendered !== null) {
+            if (! str_contains($rendered['html'], $firstKey)) {
+                Log::warning('statamic-lead-magnets: the delivery mail template ['.config('lead-magnets.mail.delivery_template').'] does not list the files of ['.$handle.']. Add {{ file_list }} to it.');
+            }
+
+            return;
+        }
+
+        $path = (string) app('view')->getFinder()->find('lead-magnets::mail.delivery');
+        $shipped = (string) realpath(__DIR__.'/../../resources/views');
+
+        if (! str_starts_with((string) realpath($path), $shipped) && ! str_contains((string) file_get_contents($path), 'groups')) {
+            Log::warning('statamic-lead-magnets: the published delivery view ['.$path.'] does not list the files of ['.$handle.']. Republish it: php artisan vendor:publish --tag=lead-magnets-views --force');
+        }
     }
 
     /** @return array<string, string> */

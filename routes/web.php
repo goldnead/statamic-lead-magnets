@@ -54,4 +54,21 @@ Route::prefix(config('lead-magnets.routes.prefix', '!/lead-magnets'))->group(fun
             'signed',
             SetBrandFromRouteValue::class.':'.Grant::class.',id,grant',
         ]);
+
+    /*
+     * One file of a multi-file resource.
+     *
+     * The file key is part of the signed URL, so a link cannot be edited into
+     * another file. The key is a short random token an editor never sees and a
+     * reorder never changes: a link already in somebody's mailbox keeps naming
+     * the same file after the list is rearranged.
+     */
+    Route::get('/download/{grant}/{file}', DownloadController::class)
+        ->name('lead-magnets.download.file')
+        ->whereNumber('grant')
+        ->where('file', '[a-z0-9]{4,16}')
+        ->middleware([
+            'signed',
+            SetBrandFromRouteValue::class.':'.Grant::class.',id,grant',
+        ]);
 });

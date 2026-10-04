@@ -14,7 +14,7 @@ import {
     ConfirmationModal,
 } from '@statamic/cms/ui';
 import ResourceFields from './Fields.vue';
-import { toForm, toPayload, visibleFieldKeys } from './form';
+import { hasOwnField, toForm, toPayload, visibleFieldKeys } from './form';
 
 const props = defineProps([
     'resource',      // { id, handle, title, description, delivery_type, link_url, requires_confirmation, published, link_ttl, max_downloads, grant_ttl_days, tags, marketing_list }
@@ -44,7 +44,7 @@ const generalErrors = computed(() => {
     const visible = visibleFieldKeys(form);
 
     return Object.entries(formErrors.value)
-        .filter(([key]) => ! visible.includes(key))
+        .filter(([key]) => ! hasOwnField(key, visible))
         .map(([, message]) => message);
 });
 
