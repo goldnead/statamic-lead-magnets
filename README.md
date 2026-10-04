@@ -92,9 +92,14 @@ is deliberate — see *Where the files live* below.
 
 #### Several files in one resource
 
-The *Files* field is a list: one row per file, each with a file picker, an
-optional **label** and an optional **group**. Drag the rows to reorder them. Add
-as many as you need; nothing is typed from memory, the file is always picked.
+The *Files* field is built like the downloads of a statamic-courses material: a
+**group** once (for example a voicing), its files underneath, each file picked
+with the asset browser and given an optional **label**. *Add group* and *Add
+file* append; drag to reorder, groups and files alike. Nothing is typed per
+file and nothing from memory: the group name is written once, so a typo cannot
+open a tenth group. A group left empty lists its files without a heading.
+Internally the list stays flat (`files`, each entry with its group), and a list
+saved by the first release reads as blocks, in order of each group's first file.
 
 Delivery then looks like this:
 
@@ -103,16 +108,28 @@ Delivery then looks like this:
   in the order of their first row; files keep the list order inside a group;
   files without a group come first or wherever their first row sits, without a
   heading. A row without a label shows the file name.
-- **Each link serves exactly one file**, named `Group - Label.ext` so the same
-  label in three groups (`SATB - Score`, `SSA - Score`) does not collide in the
-  reader's downloads folder. Links expire and are signed like the single link
+- **Each link serves exactly one file**, named `Title - Group - Label.ext`
+  (`Baraye Arrangement - Hohe Stimme - Partitur.pdf`), so the same label in
+  three groups does not collide in the reader's downloads folder and a saved
+  file still says where it came from. The ASCII fallback name spells umlauts
+  out (`Übe` becomes `Uebe`). Links expire and are signed like the single link
   always was; the file key in the URL is part of the signature.
+- **Links are tap targets**: in the mail and on the page every file is its own
+  row with a 44px-high link, separated by a hairline.
 - **The download cap counts per file** for a list (nine files with a cap of
   three: each file can be fetched three times). A single file is capped per
   grant as before.
 - **The mail template variable `{{ file_list }}`** carries the grouped list as
   HTML for templates authored in `goldnead/statamic-email-templates`;
   `{{ download_url }}` is then the overview page.
+- **Published mail templates need republishing.** A delivery view you published
+  into your site (`resources/views/vendor/lead-magnets/mail/delivery.blade.php`)
+  or an email-templates template written before the list existed has no place
+  for the files; the mail then carries only the link to the overview page.
+  Republish the views (`php artisan vendor:publish --tag=lead-magnets-views
+  --force`, after saving your own wording) or add `{{ file_list }}` to the
+  template. When a multi-file delivery goes out through a template that does not
+  list the files, a warning naming the fix is written to the log.
 - A file keeps its key when the list is reordered or relabelled, so links already
   mailed keep serving the file they were sent for. Removing a file from the list
   retires its links (404).

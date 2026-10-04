@@ -15,11 +15,13 @@ use Illuminate\Support\Facades\URL;
  * without invalidating it — and `signed` middleware answers 403 before the
  * controller ever runs.
  *
- * Nothing about the file is in the URL. The grant id is, the resource is read
- * from the grant, and the path on disk never leaves the server: a signed URL
- * that named the file would let a valid link be edited into a different file
- * only if the signature broke, which it would — but it would also print the
- * storage layout into every mailbox for no benefit.
+ * The path on disk is never in the URL. The grant id is, and the resource is
+ * read from the grant. For a resource with a list of files the URL also names
+ * the file by its key: a short random token stored with the list entry, with no
+ * relation to the path or the file name. The key is covered by the signature
+ * like everything else, so editing it to name another file breaks the hash; and
+ * a URL that carried the path would print the storage layout into every
+ * mailbox for no benefit.
  */
 class DownloadLink
 {

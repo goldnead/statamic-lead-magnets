@@ -1,5 +1,6 @@
 <?php
 
+use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\DeliveryService;
@@ -7,6 +8,7 @@ use Goldnead\LeadMagnets\Services\DownloadLink;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Statamic\Facades\User;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -212,8 +214,77 @@ it('names each download by group and label, so the same label in three groups st
     $links = app(DownloadLink::class);
 
     // barayeFiles() row 0 is SATB / "Partitur (PDF)", row 1 is SSA / "Partitur (PDF)".
-    $this->get($links->forFile($grant, $resource->fileList()[0]['key']))->assertDownload('SATB - Partitur PDF.dat');
-    $this->get($links->forFile($grant, $resource->fileList()[1]['key']))->assertDownload('SSA - Partitur PDF.dat');
+    $this->get($links->forFile($grant, $resource->fileList()[0]['key']))->assertDownload('Baraye - SATB - Partitur PDF.dat');
+    $this->get($links->forFile($grant, $resource->fileList()[1]['key']))->assertDownload('Baraye - SSA - Partitur PDF.dat');
+});
+
+it('leaves the group out of the name when there is none, and spells umlauts out in the ASCII fallback', function () {
+    $resource = makeMultiResource([
+        'handle' => 'umlaut',
+        'title' => 'Baraye Arrangement',
+        'files' => [
+            ['key' => 'um000001', 'path' => 'a.pdf', 'label' => 'Übe-MP3s', 'group' => 'Hohe Stimme'],
+            ['key' => 'um000002', 'path' => 'b.pdf', 'label' => 'Straße', 'group' => null],
+        ],
+    ]);
+    $grant = requestAndLoadGrant($resource);
+    $links = app(DownloadLink::class);
+
+    $header = $this->get($links->forFile($grant, 'um000001'))->assertOk()->headers->get('Content-Disposition');
+
+    expect($header)->toContain('filename=')
+        // The ASCII fallback: German spelling, not "Ube".
+        ->and($header)->toContain('Baraye Arrangement - Hohe Stimme - Uebe-MP3s.pdf')
+        // The real name, UTF-8 encoded for clients that read it.
+        ->and(urldecode($header))->toContain("filename*=utf-8''Baraye Arrangement - Hohe Stimme - Übe-MP3s.pdf");
+
+    $this->get($links->forFile($grant, 'um000002'))->assertDownload('Baraye Arrangement - Strasse.pdf');
+});
+
+it('refuses the file route for a pending, lapsed or revoked grant', function (string $state) {
+    $resource = makeMultiResource(['requires_confirmation' => true]);
+    $key = $resource->fileList()[0]['key'];
+
+    $grant = makeGrant($resource, 'gate@example.invalid', EntitlementState::from($state));
+
+    // A link signed for a grant that does not (or no longer) stand: the
+    // signature holds, the access does not.
+    $this->get(app(DownloadLink::class)->forFile($grant, $key))->assertForbidden();
+
+    expect($grant->fresh()->download_count)->toBe(0);
+})->with(['pending', 'expired', 'revoked']);
+
+it('refuses the overview page for a pending, lapsed or revoked grant', function (string $state) {
+    $resource = makeMultiResource(['requires_confirmation' => true]);
+
+    $grant = makeGrant($resource, 'gate@example.invalid', EntitlementState::from($state));
+
+    $this->get(app(DownloadLink::class)->for($grant))->assertForbidden();
+})->with(['pending', 'expired', 'revoked']);
+
+it('says in the log when a published delivery view does not list the files', function () {
+    $dir = sys_get_temp_dir().'/lm-views-'.uniqid();
+    mkdir($dir.'/mail', 0777, true);
+    file_put_contents($dir.'/mail/delivery.blade.php', '<p><a href="{{ $downloadUrl }}">Download</a></p>');
+    app('view')->getFinder()->prependNamespace('lead-magnets', [$dir]);
+
+    Log::spy();
+
+    requestAndLoadGrant(makeMultiResource());
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => str_contains($message, 'published delivery view') && str_contains($message, 'vendor:publish'))->once();
+
+    unlink($dir.'/mail/delivery.blade.php');
+    rmdir($dir.'/mail');
+    rmdir($dir);
+});
+
+it('says nothing in the log when the delivery view lists the files', function () {
+    Log::spy();
+
+    requestAndLoadGrant(makeMultiResource());
+
+    Log::shouldNotHaveReceived('warning');
 });
 
 it('groups by first appearance and keeps list order inside a group', function () {
@@ -436,68 +507,114 @@ describe('Control Panel', function () {
         $this->actingAs($manager);
     });
 
-    /** @return list<array{file: string, label: ?string, group: ?string}> */
-    function filesPayload(int $count = 9): array
+    /**
+     * What the form sends: a group once, its files underneath. Three groups of
+     * three for nine files; fewer files fill the groups in order.
+     *
+     * @return list<array{group: string, files: list<array{file: string, label: string}>}>
+     */
+    function groupsPayload(int $count = 9): array
+    {
+        $blocks = [];
+
+        // barayeFiles() is interleaved on purpose; the form's blocks are not.
+        $files = collect(array_slice(barayeFiles(), 0, $count))->sortBy('group')->values();
+
+        foreach ($files as $file) {
+            $blocks[$file['group']] ??= ['group' => $file['group'], 'files' => []];
+            $blocks[$file['group']]['files'][] = [
+                'file' => makeMagnetAsset(basename($file['path']))->id(),
+                'label' => $file['label'],
+            ];
+        }
+
+        return array_values($blocks);
+    }
+
+    /** The flat list the first release took. */
+    function flatPayload(int $count = 3): array
     {
         $rows = [];
 
-        foreach (array_slice(barayeFiles(), 0, $count) as $file) {
-            $rows[] = [
-                'file' => makeMagnetAsset(basename($file['path']))->id(),
-                'label' => $file['label'],
-                'group' => $file['group'],
-            ];
+        foreach (groupsPayload($count) as $block) {
+            foreach ($block['files'] as $file) {
+                $rows[] = $file + ['group' => $block['group']];
+            }
         }
 
         return $rows;
     }
 
-    it('stores an ordered list with label and group and keeps the first path in file_path', function () {
+    it('stores the blocks as one ordered list and keeps the first path in file_path', function () {
         $this->post(cp_route('lead-magnets.resources.store'), [
             'title' => 'Baraye',
             'delivery_type' => 'file',
-            'files' => filesPayload(),
+            'groups' => groupsPayload(),
         ])->assertRedirect();
 
         $resource = Resource::query()->sole();
         $list = $resource->fileList();
 
         expect($list)->toHaveCount(9)
+            ->and(array_column($list, 'group'))->toBe(['SATB', 'SATB', 'SATB', 'SSA', 'SSA', 'SSA', 'TTBB', 'TTBB', 'TTBB'])
             ->and($list[0]['label'])->toBe('Partitur (PDF)')
-            ->and($list[0]['group'])->toBe('SATB')
-            ->and($list[1]['group'])->toBe('SSA')
             ->and($resource->file_path)->toBe($list[0]['path'])
             ->and(collect($list)->pluck('key')->unique())->toHaveCount(9)
             ->and($resource->hasMultipleFiles())->toBeTrue();
     });
 
-    it('keeps a file\'s key across a save and a reorder, so links already mailed still work', function () {
-        $rows = filesPayload(3);
+    it('still takes the flat list of the first release', function () {
+        $this->post(cp_route('lead-magnets.resources.store'), [
+            'title' => 'Flat', 'delivery_type' => 'file', 'files' => flatPayload(3),
+        ])->assertRedirect();
+
+        expect(Resource::query()->sole()->fileList())->toHaveCount(3);
+    });
+
+    it('keeps a file\'s key across two saves and a swapped order, so links already mailed still work', function () {
+        $blocks = groupsPayload(6);
 
         $this->post(cp_route('lead-magnets.resources.store'), [
-            'title' => 'Three', 'delivery_type' => 'file', 'files' => $rows,
+            'title' => 'Six', 'delivery_type' => 'file', 'groups' => $blocks,
         ]);
 
         $resource = Resource::query()->sole();
         $keys = collect($resource->fileList())->pluck('key', 'path');
+        $update = cp_route('lead-magnets.resources.update', $resource->id);
 
-        $this->patch(cp_route('lead-magnets.resources.update', $resource->id), [
-            'title' => 'Three',
-            'delivery_type' => 'file',
-            'files' => array_reverse($rows),
-        ])->assertRedirect();
+        // First save: unchanged. Second save: the blocks swapped and the files
+        // inside the first one reversed.
+        $this->patch($update, ['title' => 'Six', 'delivery_type' => 'file', 'groups' => $blocks])->assertRedirect();
+
+        expect(collect($resource->fresh()->fileList())->pluck('key', 'path')->all())->toBe($keys->all());
+
+        $swapped = array_reverse($blocks);
+        $swapped[0]['files'] = array_reverse($swapped[0]['files']);
+
+        $this->patch($update, ['title' => 'Six', 'delivery_type' => 'file', 'groups' => $swapped])->assertRedirect();
 
         $after = collect($resource->fresh()->fileList());
 
-        expect($after->pluck('path')->all())->toBe(array_reverse($keys->keys()->all()))
-            ->and($after->pluck('key', 'path')->sortKeys()->all())->toBe($keys->sortKeys()->all());
+        expect($after->pluck('group')->unique()->values()->all())->toBe(['TTBB', 'SSA', 'SATB'])
+            ->and($after->pluck('key', 'path')->sortKeys()->all())->toBe($keys->sortKeys()->all())
+            ->and($after->pluck('path')->all())->not->toBe($keys->keys()->all());
     });
 
-    it('refuses the same file twice', function () {
-        $row = filesPayload(1)[0];
+    it('refuses the same file twice, in one block and across blocks', function () {
+        $row = groupsPayload(1)[0]['files'][0];
 
         $this->post(cp_route('lead-magnets.resources.store'), [
-            'title' => 'Twice', 'delivery_type' => 'file', 'files' => [$row, $row],
+            'title' => 'Twice', 'delivery_type' => 'file',
+            'groups' => [['group' => 'A', 'files' => [$row]], ['group' => 'B', 'files' => [$row]]],
+        ])->assertSessionHasErrors('groups');
+
+        $this->post(cp_route('lead-magnets.resources.store'), [
+            'title' => 'Twice', 'delivery_type' => 'file',
+            'groups' => [['group' => 'A', 'files' => [$row, $row]]],
+        ])->assertSessionHasErrors('groups');
+
+        $this->post(cp_route('lead-magnets.resources.store'), [
+            'title' => 'Twice flat', 'delivery_type' => 'file', 'files' => [$row, $row],
         ])->assertSessionHasErrors('files');
 
         expect(Resource::query()->count())->toBe(0);
@@ -507,8 +624,14 @@ describe('Control Panel', function () {
         $this->post(cp_route('lead-magnets.resources.store'), [
             'title' => 'Foreign',
             'delivery_type' => 'file',
-            'files' => [['file' => 'assets::nope.pdf', 'label' => 'x', 'group' => null]],
-        ])->assertSessionHasErrors('files.0.file');
+            'groups' => [['group' => null, 'files' => [['file' => 'assets::nope.pdf', 'label' => 'x']]]],
+        ])->assertSessionHasErrors('groups.0.files.0.file');
+    });
+
+    it('requires a file when the blocks are all empty on a new resource', function () {
+        $this->post(cp_route('lead-magnets.resources.store'), [
+            'title' => 'Empty', 'delivery_type' => 'file', 'groups' => [['group' => 'A', 'files' => []]],
+        ])->assertSessionHasErrors('file_asset');
     });
 
     it('still accepts the old single file_asset field', function () {
@@ -540,26 +663,49 @@ describe('Control Panel', function () {
             ->and($fresh->getRawOriginal('files'))->toBeNull();
     });
 
-    it('hands the detail page one grid row per file, with the stored label and group', function () {
+    it('keeps the stored list when the blocks come back empty', function () {
+        $resource = makeMultiResource();
+        $before = $resource->fresh()->files;
+
+        $this->patch(cp_route('lead-magnets.resources.update', $resource->id), [
+            'title' => 'Renamed', 'delivery_type' => 'file', 'groups' => [],
+        ])->assertRedirect();
+
+        $fresh = $resource->fresh();
+
+        expect($fresh->title)->toBe('Renamed')
+            ->and($fresh->files)->toBe($before)
+            ->and($fresh->file_path)->toBe($before[0]['path']);
+    });
+
+    it('shows the stored list as group blocks, each with its files and labels', function () {
         makeMultiResource();
         $resource = Resource::query()->sole();
 
+        // The interleaved flat list reads as three blocks, in order of first
+        // appearance: SATB, SSA, TTBB, three files each.
         $this->get(cp_route('lead-magnets.resources.show', $resource->id))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('lead-magnets::Resources/Show')
-                ->has('fileField.values.files', 9)
-                ->where('fileField.values.files.0.label', 'Partitur (PDF)')
-                ->where('fileField.values.files.0.group', 'SATB')
+                ->has('fileField.values.groups', 3)
+                ->where('fileField.values.groups.0.group', 'SATB')
+                ->where('fileField.values.groups.1.group', 'SSA')
+                ->has('fileField.values.groups.2.files', 3)
+                ->where('fileField.values.groups.0.files.0.label', 'Partitur (PDF)')
             );
     });
 
-    it('shows a legacy freebie as a one-row list', function () {
+    it('shows a legacy freebie as one block without a heading', function () {
         $resource = makeResource();
 
         $this->get(cp_route('lead-magnets.resources.show', $resource->id))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->has('fileField.values.files', 1));
+            ->assertInertia(fn ($page) => $page
+                ->has('fileField.values.groups', 1)
+                ->where('fileField.values.groups.0.group', null)
+                ->has('fileField.values.groups.0.files', 1)
+            );
     });
 
     it('says how many files a resource carries on the listing', function () {

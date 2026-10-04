@@ -142,13 +142,13 @@ it('hands the form the picker preloaded with the resource that has a file', func
     $this->get(cp_route('lead-magnets.resources.show', $resource->id))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('fileField.blueprint.tabs.0.sections.0.fields.0.handle', 'files')
+            ->where('fileField.blueprint.tabs.0.sections.0.fields.0.handle', 'groups')
             ->where('fileField.blueprint.tabs.0.sections.0.fields.0.type', 'grid')
-            ->where('fileField.blueprint.tabs.0.sections.0.fields.0.fields.0.container', 'lead_magnets')
+            ->where('fileField.blueprint.tabs.0.sections.0.fields.0.fields.1.fields.0.container', 'lead_magnets')
             // The stored value is a path; the fieldtype wants an id. The
             // conversion happens server-side, and this is the assertion that
             // it happened.
-            ->where('fileField.values.files.0.file.0', $asset->id())
+            ->where('fileField.values.groups.0.files.0.file.0', $asset->id())
         );
 });
 
@@ -167,7 +167,7 @@ it('shows an empty picker rather than breaking for a path that is not an asset',
 
     $this->get(cp_route('lead-magnets.resources.show', $resource->id))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('fileField.values.files.0.file', []));
+        ->assertInertia(fn ($page) => $page->where('fileField.values.groups.0.files.0.file', []));
 });
 
 it('stores the picked asset as a path on the container disk', function () {

@@ -6,8 +6,16 @@
 
 A resource carries an ordered list of files, each with a label and a group. The delivery mail lists all
 of them grouped, every file with its own signed, expiring link, and the plain download link opens an
-overview page with the same list. The Control Panel edits the list with core's grid and asset fields:
-pick the file, optionally label and group it, drag to reorder.
+overview page with the same list. The Control Panel edits the list with core's grid and asset fields,
+laid out like the downloads of a statamic-courses material: a group once, its files underneath
+("Add group" / "Add file"), each file picked and optionally labelled, drag to reorder.
+
+- Download names are `Title - Group - Label.ext`, with a German-spelled ASCII fallback (`Übe` → `Uebe`).
+- In the mail and on the page every file is its own 44px-high row.
+- **Republish published mail views.** A delivery view published into your site, or an email-templates
+  template written before the list, does not list the files. Republish the views or add `{{ file_list }}`;
+  the log carries a warning when a multi-file delivery goes out through such a template.
+- The stored list stays flat; a list saved while this was in development reads as group blocks.
 
 - Existing single-file resources are unchanged and need no data migration: a resource without a list is
   read as a list of one, keeps its direct link and its file name.

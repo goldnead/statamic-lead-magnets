@@ -33,20 +33,22 @@ function number(value) {
 }
 
 /**
- * Die Zeilen des Dateiraster-Feldes als Liste fuer den Server.
+ * Die Gruppenbloecke des Dateiraster-Feldes fuer den Server.
  *
  * Eine Zeile ohne gewaehlte Datei faellt weg: sie ist ein halb ausgefuelltes
- * Raster, keine Datei. Die Reihenfolge ist die des Rasters, per Ziehen
- * geaendert, und genau die liest der Leser spaeter.
+ * Raster, keine Datei, und ein Block ohne Dateien faellt mit ihr. Die
+ * Reihenfolge ist die des Rasters, per Ziehen geaendert, und genau die liest
+ * der Leser spaeter.
  */
-export function fileRows(fileValues) {
-    return (fileValues?.files || [])
-        .map((row) => ({
-            file: (row.file || [])[0] ?? null,
-            label: row.label || null,
-            group: row.group || null,
+export function fileGroups(fileValues) {
+    return (fileValues?.groups || [])
+        .map((block) => ({
+            group: block.group || null,
+            files: (block.files || [])
+                .map((row) => ({ file: (row.file || [])[0] ?? null, label: row.label || null }))
+                .filter((row) => row.file !== null),
         }))
-        .filter((row) => row.file !== null);
+        .filter((block) => block.files.length > 0);
 }
 
 /**
@@ -63,7 +65,7 @@ export function toPayload(form, fileValues, { creating = false } = {}) {
         ...(creating ? { handle: form.handle || null } : {}),
         description: form.description || null,
         delivery_type: form.delivery_type,
-        files: isFile ? fileRows(fileValues) : null,
+        groups: isFile ? fileGroups(fileValues) : null,
         link_url: isFile ? null : (form.link_url || null),
         requires_confirmation: form.requires_confirmation,
         published: form.published,
@@ -91,7 +93,7 @@ export function visibleFieldKeys(form, { creating = false } = {}) {
     ];
 
     if (creating) keys.push('handle');
-    keys.push(...(form.delivery_type === 'file' ? ['files', 'file_asset'] : ['link_url']));
+    keys.push(...(form.delivery_type === 'file' ? ['groups', 'files', 'file_asset'] : ['link_url']));
 
     return keys;
 }
@@ -99,9 +101,9 @@ export function visibleFieldKeys(form, { creating = false } = {}) {
 /**
  * Ob ein abgelehnter Schluessel ein eigenes Feld auf dem Schirm hat.
  *
- * Die Zeilen des Dateirasters melden `files.0.file`, `files.3.label` und so
- * weiter; sie stehen am Raster selbst, nicht im Banner.
+ * Die Zeilen des Dateirasters melden `groups.0.files.2.file` und so weiter;
+ * sie stehen am Raster selbst, nicht im Banner.
  */
 export function hasOwnField(key, visible) {
-    return visible.includes(key) || key.startsWith('files.');
+    return visible.includes(key) || key.startsWith('groups.') || key.startsWith('files.');
 }

@@ -43,7 +43,7 @@ const deliveryOptions = computed(() => [
 // Die Fehler der Dateiliste: die Liste selbst, die alte Einzel-Datei und jede
 // Zeile des Rasters (`files.2.file`).
 const fileErrors = computed(() => Object.fromEntries(
-    Object.entries(props.errors).filter(([key]) => key === 'files' || key === 'file_asset' || key.startsWith('files.')),
+    Object.entries(props.errors).filter(([key]) => key === 'groups' || key === 'files' || key === 'file_asset' || key.startsWith('groups.') || key.startsWith('files.')),
 ));
 
 const fileBlueprintFields = computed(

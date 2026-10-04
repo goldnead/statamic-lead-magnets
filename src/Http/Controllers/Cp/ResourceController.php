@@ -260,9 +260,10 @@ class ResourceController extends Controller
     }
 
     /**
-     * The file list: Statamic's own `grid` fieldtype with the core `assets`
-     * field in every row, over this addon's container, as a one-field
-     * blueprint the Vue page renders through a `PublishContainer`.
+     * The file list: Statamic's own `grid` fieldtype, a group on the outer
+     * level and a grid of core `assets` rows with a label underneath, over this
+     * addon's container, as a one-field blueprint the Vue page renders through
+     * a `PublishContainer`.
      *
      * Core fieldtypes rather than a path to type by hand, because they are what
      * an editor already knows from every other screen — browsing, uploading,
@@ -288,56 +289,74 @@ class ResourceController extends Controller
         $this->assets->ensureContainer();
 
         $blueprint = Blueprint::makeFromFields([
-            'files' => [
+            // The shape of statamic-courses' material downloads: a group once,
+            // its files underneath. Typing a group name per file would repeat
+            // it nine times for nine files, and a typo in one of them would
+            // quietly open a tenth group.
+            'groups' => [
                 'type' => 'grid',
                 'display' => __('lead-magnets::resources.files'),
                 'instructions' => __('lead-magnets::resources.files_instructions'),
-                'mode' => 'table',
+                'mode' => 'stacked',
                 'reorderable' => true,
-                'add_row' => __('lead-magnets::resources.files_add'),
+                'add_row' => __('lead-magnets::resources.groups_add'),
                 'fields' => [
-                    [
-                        'handle' => 'file',
-                        'field' => [
-                            'type' => 'assets',
-                            'display' => __('lead-magnets::resources.files_file'),
-                            'container' => $this->assets->containerHandle(),
-                            'max_files' => 1,
-                            'mode' => 'list',
-                            'width' => 50,
-                        ],
-                    ],
-                    [
-                        'handle' => 'label',
-                        'field' => [
-                            'type' => 'text',
-                            'display' => __('lead-magnets::resources.files_label'),
-                            'placeholder' => __('lead-magnets::resources.files_label_placeholder'),
-                            'width' => 25,
-                        ],
-                    ],
                     [
                         'handle' => 'group',
                         'field' => [
                             'type' => 'text',
                             'display' => __('lead-magnets::resources.files_group'),
-                            'placeholder' => __('lead-magnets::resources.files_group_placeholder'),
-                            'width' => 25,
+                            'instructions' => __('lead-magnets::resources.files_group_instructions'),
+                        ],
+                    ],
+                    [
+                        'handle' => 'files',
+                        'field' => [
+                            'type' => 'grid',
+                            'display' => __('lead-magnets::resources.files_files'),
+                            'mode' => 'table',
+                            'reorderable' => true,
+                            'add_row' => __('lead-magnets::resources.files_add'),
+                            'fields' => [
+                                [
+                                    'handle' => 'file',
+                                    'field' => [
+                                        'type' => 'assets',
+                                        'display' => __('lead-magnets::resources.files_file'),
+                                        'container' => $this->assets->containerHandle(),
+                                        'max_files' => 1,
+                                        'mode' => 'list',
+                                        'width' => 75,
+                                    ],
+                                ],
+                                [
+                                    'handle' => 'label',
+                                    'field' => [
+                                        'type' => 'text',
+                                        'display' => __('lead-magnets::resources.files_label'),
+                                        'width' => 25,
+                                    ],
+                                ],
+                            ],
                         ],
                     ],
                 ],
             ],
         ]);
 
-        $rows = collect($record?->fileList() ?? [])->map(fn (array $file) => [
-            'file' => [$file['path']],
-            'label' => $file['label'],
-            'group' => $file['group'],
-        ])->all();
+        // The stored list is flat; the form shows it as blocks. Groups come in
+        // order of their first file, so a list written before the blocks existed
+        // (or by hand) reads the same way the delivery mail groups it.
+        $blocks = [];
+
+        foreach ($record?->fileList() ?? [] as $file) {
+            $blocks[$file['group'] ?? "\0"] ??= ['group' => $file['group'], 'files' => []];
+            $blocks[$file['group'] ?? "\0"]['files'][] = ['file' => [$file['path']], 'label' => $file['label']];
+        }
 
         $fields = $blueprint
             ->fields()
-            ->addValues(['files' => $rows])
+            ->addValues(['groups' => array_values($blocks)])
             ->preProcess();
 
         return [
@@ -416,7 +435,9 @@ class ResourceController extends Controller
                 'string',
                 'max:255',
                 $existing?->file_path === null
-                    ? Rule::requiredIf(fn () => $request->input('delivery_type') === 'file' && empty($request->input('files')))
+                    ? Rule::requiredIf(fn () => $request->input('delivery_type') === 'file'
+                        && empty($request->input('files'))
+                        && $this->groupFileIds((array) $request->input('groups')) === [])
                     : 'sometimes',
                 // A trust boundary, not a formality. The id arrives from the
                 // browser and decides which file this resource hands out, so an
@@ -429,19 +450,36 @@ class ResourceController extends Controller
                     }
                 },
             ],
+            // The form sends `groups`: a group once, its files underneath. The
+            // flat `files` list is what the first release took and is still
+            // accepted, so a script written against it keeps working.
+            'groups' => [
+                'nullable',
+                'array',
+                'max:100',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    $this->failOnDuplicates($this->groupFileIds((array) $value), $fail);
+                },
+            ],
+            'groups.*.group' => ['nullable', 'string', 'max:191'],
+            'groups.*.files' => ['nullable', 'array', 'max:200'],
+            'groups.*.files.*.file' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, callable $fail): void {
+                    if ($this->assetInContainer($value) === null) {
+                        $fail(__('lead-magnets::resources.file_unknown'));
+                    }
+                },
+            ],
+            'groups.*.files.*.label' => ['nullable', 'string', 'max:191'],
             'files' => [
                 'nullable',
                 'array',
                 'max:200',
-                // The same file twice would be two rows with one key's worth of
-                // meaning, and a download cap counted against whichever came
-                // first.
                 function (string $attribute, mixed $value, callable $fail): void {
-                    $ids = array_filter(array_column((array) $value, 'file'));
-
-                    if (count($ids) !== count(array_unique($ids))) {
-                        $fail(__('lead-magnets::resources.files_duplicate'));
-                    }
+                    $this->failOnDuplicates(array_filter(array_column((array) $value, 'file')), $fail);
                 },
             ],
             'files.*.file' => [
@@ -514,7 +552,42 @@ class ResourceController extends Controller
     }
 
     /**
-     * The submitted rows, with the single-file shorthand folded in.
+     * Every file id in the group blocks, in order.
+     *
+     * @param  array<int|string, mixed>  $groups
+     * @return list<string>
+     */
+    protected function groupFileIds(array $groups): array
+    {
+        $ids = [];
+
+        foreach ($groups as $block) {
+            foreach ((array) (is_array($block) ? ($block['files'] ?? []) : []) as $row) {
+                if (is_array($row) && is_string($row['file'] ?? null) && $row['file'] !== '') {
+                    $ids[] = $row['file'];
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * The same file twice would be two rows with one key's worth of meaning,
+     * and a download cap counted against whichever came first.
+     *
+     * @param  array<int|string, mixed>  $ids
+     */
+    protected function failOnDuplicates(array $ids, callable $fail): void
+    {
+        if (count($ids) !== count(array_unique($ids))) {
+            $fail(__('lead-magnets::resources.files_duplicate'));
+        }
+    }
+
+    /**
+     * The submitted blocks flattened, then the flat list, then the single-file
+     * shorthand — whichever the request used.
      *
      * @param  array<string, mixed>  $data
      * @return list<array{file: string, label: ?string, group: ?string}>
@@ -523,7 +596,17 @@ class ResourceController extends Controller
     {
         $rows = [];
 
-        foreach ((array) ($data['files'] ?? []) as $row) {
+        foreach ((array) ($data['groups'] ?? []) as $block) {
+            foreach ((array) ($block['files'] ?? []) as $row) {
+                $rows[] = [
+                    'file' => (string) $row['file'],
+                    'label' => $row['label'] ?? null,
+                    'group' => $block['group'] ?? null,
+                ];
+            }
+        }
+
+        foreach ($rows === [] ? (array) ($data['files'] ?? []) : [] as $row) {
             $rows[] = [
                 'file' => (string) $row['file'],
                 'label' => $row['label'] ?? null,
