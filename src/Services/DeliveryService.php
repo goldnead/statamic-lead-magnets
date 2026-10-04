@@ -105,6 +105,8 @@ class DeliveryService
         // the one direct link and no list.
         $url = $this->links->for($grant);
         $groups = $grant->resource?->hasMultipleFiles() ? $this->links->groupedFor($grant) : null;
+        /** @var view-string $fileGroupsView */
+        $fileGroupsView = 'lead-magnets::partials.file-groups';
 
         $rendered = $this->templates->render(
             (string) config('lead-magnets.mail.delivery_template', ''),
@@ -112,7 +114,7 @@ class DeliveryService
                 'download_url' => $url,
                 // Rendered by Blade, which escapes labels and group names; the
                 // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
-                'file_list' => $groups === null ? '' : app('view')->make('lead-magnets::partials.file-groups', ['groups' => $groups])->render(),
+                'file_list' => $groups === null ? '' : app('view')->make($fileGroupsView, ['groups' => $groups])->render(),
             ],
         );
 
