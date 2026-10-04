@@ -10,7 +10,7 @@ import { computed, reactive, ref } from 'vue';
 import { Head, router } from '@statamic/cms/inertia';
 import { Header, Alert, Button } from '@statamic/cms/ui';
 import ResourceFields from './Fields.vue';
-import { toForm, toPayload, visibleFieldKeys } from './form';
+import { hasOwnField, toForm, toPayload, visibleFieldKeys } from './form';
 
 const props = defineProps([
     'fileField',   // { blueprint, values, meta } — der assets-Feldtyp fuer die Datei
@@ -26,7 +26,7 @@ const generalErrors = computed(() => {
     const visible = visibleFieldKeys(form, { creating: true });
 
     return Object.entries(formErrors.value)
-        .filter(([key]) => ! visible.includes(key))
+        .filter(([key]) => ! hasOwnField(key, visible))
         .map(([, message]) => message);
 });
 

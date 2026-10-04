@@ -16,15 +16,17 @@ class EmailTemplatesBridge extends Bridge
     /**
      * The variables inserted raw into the HTML body, without escaping.
      *
-     * Both are links this addon builds itself — a confirmation token, a signed
-     * download URL — and both are used as an `href`, where the query string's
-     * `&` must survive intact. Everything else is escaped: `email` is whatever
+     * The first two are links this addon builds itself — a confirmation token,
+     * a signed download URL — used as an `href`, where the query string's `&`
+     * must survive intact. `file_list` is the grouped list of a multi-file
+     * delivery, already rendered by Blade, which escaped every label and group
+     * name an editor typed. Everything else is escaped: `email` is whatever
      * a visitor typed into the form, and the mail carrying it goes to an
      * address nobody has confirmed yet.
      *
      * @var list<string>
      */
-    public const RAW_VARIABLES = ['confirm_url', 'download_url'];
+    public const RAW_VARIABLES = ['confirm_url', 'download_url', 'file_list'];
 
     /** @return class-string */
     protected function facade(): string

@@ -299,6 +299,10 @@ class GrantService
 
             return $grant->downloads()->create([
                 'brand_id' => $grant->brand_id,
+                // Only a multi-file download names its file. Left out entirely
+                // otherwise, so a single-file freebie writes the same row as
+                // before and an install that has not migrated yet still works.
+                ...(isset($context['file_key']) ? ['file_key' => (string) $context['file_key']] : []),
                 'downloaded_at' => Carbon::now(),
                 'ip_hash' => isset($context['ip'])
                     ? hash('sha256', (string) $context['ip'])

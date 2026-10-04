@@ -11,5 +11,6 @@ return [
     'delivery_greeting' => 'Hello,',
     'delivery_body' => 'Here is ":title", as requested.',
     'delivery_cta' => 'Download',
+    'delivery_all_on_one_page' => 'All files on one page',
     'delivery_expiry' => 'The link is personal and expires. Ask again if it has, and a new one comes right back.',
 ];

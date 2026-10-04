@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $delivery_type
  * @property string|null $file_path
  * @property string|null $file_disk
+ * @property array<int, array{key: string, path: string, label: string|null, group: string|null}>|null $files
  * @property string|null $link_url
  * @property bool $requires_confirmation
  * @property bool $published
@@ -45,6 +46,7 @@ class Resource extends Model
         'max_downloads' => 'integer',
         'grant_ttl_days' => 'integer',
         'tags' => 'array',
+        'files' => 'array',
     ];
 
     /** @return HasMany<Grant, $this> */
@@ -89,6 +91,70 @@ class Resource extends Model
             fn ($tag) => trim((string) $tag),
             $this->tags ?? []
         ), fn ($tag) => $tag !== ''));
+    }
+
+    /**
+     * The ordered file list, whichever way the resource stores it.
+     *
+     * A resource saved from the Control Panel carries `files`. One that predates
+     * the list, or whose path was set by hand, has only `file_path`, and is
+     * read here as a list of one — so every caller asks the same question and
+     * nothing has to know which generation of record it holds. The legacy item
+     * gets the key `main`; it is never written back, and a single file is
+     * served on the plain download link anyway.
+     *
+     * @return array<int, array{key: string, path: string, label: string|null, group: string|null}>
+     */
+    public function fileList(): array
+    {
+        if ($this->isLink()) {
+            return [];
+        }
+
+        $list = [];
+
+        foreach ((array) ($this->files ?? []) as $item) {
+            if (! is_array($item) || ($item['path'] ?? '') === '' || ($item['key'] ?? '') === '') {
+                continue;
+            }
+
+            $label = trim((string) ($item['label'] ?? ''));
+            $group = trim((string) ($item['group'] ?? ''));
+
+            $list[] = [
+                'key' => (string) $item['key'],
+                'path' => (string) $item['path'],
+                'label' => $label === '' ? null : $label,
+                'group' => $group === '' ? null : $group,
+            ];
+        }
+
+        if ($list === [] && $this->file_path) {
+            $list[] = ['key' => 'main', 'path' => $this->file_path, 'label' => null, 'group' => null];
+        }
+
+        return $list;
+    }
+
+    /**
+     * More than one file: the delivery mail and the download page list them.
+     * A list of one behaves like the single file of old.
+     */
+    public function hasMultipleFiles(): bool
+    {
+        return count($this->fileList()) > 1;
+    }
+
+    /** @return array{key: string, path: string, label: string|null, group: string|null}|null */
+    public function findFile(string $key): ?array
+    {
+        foreach ($this->fileList() as $file) {
+            if ($file['key'] === $key) {
+                return $file;
+            }
+        }
+
+        return null;
     }
 
     public function isLink(): bool

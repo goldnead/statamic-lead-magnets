@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $brand_id
  * @property int $grant_id
+ * @property string|null $file_key
  * @property Carbon|null $downloaded_at
  * @property string|null $ip_hash
  * @property string|null $user_agent

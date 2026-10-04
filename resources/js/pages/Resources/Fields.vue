@@ -40,6 +40,12 @@ const deliveryOptions = computed(() => [
     { value: 'link', label: __('Link') },
 ]);
 
+// Die Fehler der Dateiliste: die Liste selbst, die alte Einzel-Datei und jede
+// Zeile des Rasters (`files.2.file`).
+const fileErrors = computed(() => Object.fromEntries(
+    Object.entries(props.errors).filter(([key]) => key === 'files' || key === 'file_asset' || key.startsWith('files.')),
+));
+
 const fileBlueprintFields = computed(
     () => props.fileField?.blueprint?.tabs?.[0]?.sections?.[0]?.fields ?? [],
 );
@@ -115,8 +121,12 @@ const fileBlueprintFields = computed(
                             </PublishFieldsProvider>
                         </PublishContainer>
 
-                        <p v-if="errors.file_asset" class="mt-1 text-xs text-red-500">
-                            {{ errors.file_asset }}
+                        <p
+                            v-for="(message, key) in fileErrors"
+                            :key="key"
+                            class="mt-1 text-xs text-red-500"
+                        >
+                            {{ message }}
                         </p>
                     </div>
 

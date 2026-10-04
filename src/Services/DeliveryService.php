@@ -98,11 +98,21 @@ class DeliveryService
             return false;
         }
 
+        // For a resource with a list of files the one `download_url` is the
+        // overview page, and `groups` carries every file with its own signed
+        // link, so the mail is complete without the page. A single file keeps
+        // the one direct link and no list.
         $url = $this->links->for($grant);
+        $groups = $grant->resource?->hasMultipleFiles() ? $this->links->groupedFor($grant) : null;
 
         $rendered = $this->templates->render(
             (string) config('lead-magnets.mail.delivery_template', ''),
-            $this->variables($grant) + ['download_url' => $url],
+            $this->variables($grant) + [
+                'download_url' => $url,
+                // Rendered by Blade, which escapes labels and group names; the
+                // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
+                'file_list' => $groups === null ? '' : app('view')->make('lead-magnets::partials.file-groups', ['groups' => $groups])->render(),
+            ],
         );
 
         $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
@@ -110,6 +120,7 @@ class DeliveryService
             $url,
             $rendered['html'] ?? null,
             $rendered['subject'] ?? null,
+            $groups,
         ));
 
         if (! $sent) {
