@@ -170,6 +170,40 @@ With double opt-in on: a confirmation mail goes out, the grant is `pending`, and
 the download link follows only once the address is confirmed. With it off: the
 delivery mail goes out immediately.
 
+### One confirmation for the file and the newsletter
+
+By default a resource that names a mailing list subscribes the confirmed
+address through marketing's own consent path, and if that list uses double
+opt-in the reader gets a second confirmation mail. Switch on **Subscribe
+through this confirmation** on the resource to make the one confirmation count
+for both:
+
+- It needs double opt-in on the resource, a mailing list and a **disclosure**:
+  one sentence that says the file comes with the subscription. The Control
+  Panel refuses the switch without all three. Show the same sentence on your
+  form; the addon puts it in the confirmation mail and on the confirmation
+  page, and in email-templates templates as `{{ list_consent_text }}`.
+- When the confirmation mail goes out, the grant keeps a copy of the sentence
+  (`meta.list_consent`). That copy, not the resource's current text, is what
+  the consent record carries.
+- **Opening the confirmation link does not confirm.** Mail scanners fetch every
+  link, and a scanner may not subscribe anybody. For a coupled grant
+  `GET /confirm/{token}` shows the disclosure and a button; the button's
+  `POST` confirms. Uncoupled resources still confirm on `GET`.
+- On the button press the file is delivered and marketing's `subscribe()` is
+  called with `skip_confirmation` and `meta.consent` = method, list, wording,
+  source (`lead-magnets:<handle>`), `requested_at`, `confirmed_at`.
+- An editor reinstating a pending grant is not the reader's consent: the list
+  then asks for its own confirmation.
+- Unsubscribing does not touch the grant. The file stays downloadable.
+
+### Mail templates per resource
+
+*Confirmation template* and *Delivery template* on a resource name an
+email-templates slug for that resource's mails (for example a welcome text per
+freebie, with `{{ file_list }}` for the files). Empty uses
+`lead-magnets.mail.confirmation_template` / `delivery_template`.
+
 ### From your own code
 
 ```php
@@ -209,7 +243,8 @@ Event::listen(ResourceConfirmed::class, function (ResourceConfirmed $event) {
 | Method | URL | Name |
 |---|---|---|
 | POST | `/!/lead-magnets/request` | `lead-magnets.request` |
-| GET | `/!/lead-magnets/confirm/{token}` | `lead-magnets.confirm` |
+| GET | `/!/lead-magnets/confirm/{token}` | `lead-magnets.confirm` (confirms; for a coupled grant shows the button instead) |
+| POST | `/!/lead-magnets/confirm/{token}` | `lead-magnets.confirm.store` (the button) |
 | GET | `/!/lead-magnets/download/{grant}` | `lead-magnets.download` (signed; the file, or the overview page for a list) |
 | GET | `/!/lead-magnets/download/{grant}/{file}` | `lead-magnets.download.file` (signed; one file of a list) |
 

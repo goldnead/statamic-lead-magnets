@@ -51,5 +51,14 @@
     "The visitor is forwarded here through the signed route, so a link is counted and audited exactly like a file.": "The visitor is forwarded here through the signed route, so a link is counted and audited exactly like a file.",
     "On: the address gets a confirmation mail and the download only after confirming. Off: the download goes out immediately.": "On: the address gets a confirmation mail and the download only after confirming. Off: the download goes out immediately.",
     "Comma separated. Written onto the contact when access activates. Needs the Leadhub addon; ignored without it.": "Comma separated. Written onto the contact when access activates. Needs the Leadhub addon; ignored without it.",
-    "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon.": "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon."
+    "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon.": "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon.",
+    "Subscribe through this confirmation": "Subscribe through this confirmation",
+    "On: confirming the download also confirms the mailing list, and the list sends no confirmation of its own. Needs double opt-in, a list and the disclosure below.": "On: confirming the download also confirms the mailing list, and the list sends no confirmation of its own. Needs double opt-in, a list and the disclosure below.",
+    "Disclosure": "Disclosure",
+    "One sentence the reader sees in the confirmation mail and on the confirmation page, and that the consent record keeps. Show the same sentence on your form.": "One sentence the reader sees in the confirmation mail and on the confirmation page, and that the consent record keeps. Show the same sentence on your form.",
+    "Mail templates": "Mail templates",
+    "Confirmation template": "Confirmation template",
+    "Delivery template": "Delivery template",
+    "Slug of an Email Templates entry for this resource. Leave empty for the configured default.": "Slug of an Email Templates entry for this resource. Leave empty for the configured default.",
+    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default."
 }

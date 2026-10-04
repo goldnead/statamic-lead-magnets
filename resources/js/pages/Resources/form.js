@@ -23,6 +23,10 @@ export function toForm(resource) {
         grant_ttl_days: resource?.grant_ttl_days ?? '',
         tags: (resource?.tags || []).join(', '),
         marketing_list: resource?.marketing_list || '',
+        list_via_confirmation: !! resource?.list_via_confirmation,
+        list_consent_text: resource?.list_consent_text || '',
+        confirmation_template: resource?.confirmation_template || '',
+        delivery_template: resource?.delivery_template || '',
     };
 }
 
@@ -74,6 +78,10 @@ export function toPayload(form, fileValues, { creating = false } = {}) {
         grant_ttl_days: number(form.grant_ttl_days),
         tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
         marketing_list: form.marketing_list || null,
+        list_via_confirmation: !! form.list_via_confirmation,
+        list_consent_text: form.list_consent_text || null,
+        confirmation_template: form.confirmation_template || null,
+        delivery_template: form.delivery_template || null,
     };
 }
 
@@ -90,7 +98,10 @@ export function visibleFieldKeys(form, { creating = false } = {}) {
     const keys = [
         'title', 'description', 'delivery_type', 'requires_confirmation', 'published',
         'link_ttl', 'max_downloads', 'grant_ttl_days', 'tags', 'marketing_list',
+        'list_via_confirmation', 'confirmation_template', 'delivery_template',
     ];
+
+    if (form.list_via_confirmation) keys.push('list_consent_text');
 
     if (creating) keys.push('handle');
     keys.push(...(form.delivery_type === 'file' ? ['groups', 'files', 'file_asset'] : ['link_url']));

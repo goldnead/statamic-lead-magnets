@@ -88,6 +88,14 @@ class LeadMagnetsManager
             return $grant;
         }
 
+        // A grant that also confirms a mailing list is redeemed by a button
+        // press, not by opening the link (see `ConfirmController`), and the
+        // press is what the consent record names. Stamped before activation,
+        // because the list is subscribed inside it.
+        if ($grant->isPending() && $grant->couplesList()) {
+            $this->grants->markListConsentConfirmed($grant);
+        }
+
         $this->grants->activate($grant);
 
         return $grant->refresh();

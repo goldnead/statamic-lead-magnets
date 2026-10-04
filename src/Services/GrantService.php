@@ -127,6 +127,7 @@ class GrantService
         $grant->forceFill([
             'token_hash' => ConfirmationToken::hash($token),
             'confirm_expires_at' => $this->confirmationDeadline(),
+            'meta' => $this->withListConsent($grant, $resource),
         ])->save();
 
         $grant->plainToken = $token;
@@ -314,7 +315,58 @@ class GrantService
         });
     }
 
+    /**
+     * Record that the reader pressed the button on a coupled confirmation.
+     *
+     * Written before activation, because the marketing bridge runs inside it
+     * and reads this stamp as the proof that the person, not an editor and not
+     * a link scanner, agreed to the list. A press that then loses the
+     * activation race leaves a stamp on a grant that is already active, which
+     * the bridge never reads again.
+     */
+    public function markListConsentConfirmed(Grant $grant): void
+    {
+        $meta = $grant->meta ?? [];
+
+        if (! is_array($meta['list_consent'] ?? null)) {
+            return;
+        }
+
+        $meta['list_consent']['confirmed_at'] = CarbonImmutable::now('UTC')->toIso8601String();
+
+        $grant->forceFill(['meta' => $meta])->save();
+    }
+
     // --------------------------------------------------------------- internals
+
+    /**
+     * The grant's meta with the disclosure the confirmation mail is about to
+     * carry, or without one when the resource does not couple its list.
+     *
+     * A copy, not a reference to the resource: the consent record has to say
+     * what this reader was shown, and an editor may change the sentence
+     * between the mail and the click. A fresh request replaces the copy,
+     * because the new mail shows the new sentence; a resource that stopped
+     * coupling drops it, so an older mail cannot be confirmed into the list.
+     *
+     * @return array<string, mixed>
+     */
+    protected function withListConsent(Grant $grant, Resource $resource): array
+    {
+        $meta = $grant->meta ?? [];
+        unset($meta['list_consent']);
+
+        if ($resource->couplesListToConfirmation()) {
+            $meta['list_consent'] = [
+                'list' => (string) $resource->marketing_list,
+                'text' => (string) $resource->listConsentText(),
+                'source' => 'lead-magnets:'.$resource->handle,
+                'requested_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+            ];
+        }
+
+        return $meta;
+    }
 
     /**
      * The entitlement behind a grant, created pending if it has none yet.

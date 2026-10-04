@@ -152,6 +152,28 @@ class Grant extends Model
         return $this->state() === EntitlementState::Expired;
     }
 
+    /**
+     * The disclosure copied onto this grant when its confirmation went out, or
+     * null when the resource did not couple its list (see
+     * `GrantService::withListConsent()`).
+     *
+     * @return array{list: string, text: string, source: string, requested_at: string, confirmed_at?: string}|null
+     */
+    public function listConsent(): ?array
+    {
+        $consent = $this->meta['list_consent'] ?? null;
+
+        return is_array($consent) && ($consent['text'] ?? '') !== '' && ($consent['list'] ?? '') !== ''
+            ? $consent
+            : null;
+    }
+
+    /** Whether confirming this grant also confirms a mailing list. */
+    public function couplesList(): bool
+    {
+        return $this->listConsent() !== null;
+    }
+
     /** Whether the confirmation link's own window has closed. */
     public function confirmationLapsed(): bool
     {

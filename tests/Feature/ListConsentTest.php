@@ -4,6 +4,7 @@ use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeEmailTemplate;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeEmailTemplatesFacade;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeMailingListRepository;

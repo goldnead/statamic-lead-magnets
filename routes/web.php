@@ -30,8 +30,14 @@ Route::prefix(config('lead-magnets.routes.prefix', '!/lead-magnets'))->group(fun
             'throttle:'.config('lead-magnets.requests.throttle', '10,1'),
         ]);
 
-    Route::get('/confirm/{token}', ConfirmController::class)
+    Route::get('/confirm/{token}', [ConfirmController::class, 'show'])
         ->name('lead-magnets.confirm')
+        ->middleware(SetBrandFromConfirmationToken::class.':token');
+
+    // The button on the page above, for a grant that also confirms a mailing
+    // list: opening a link is not consent, pressing a button is.
+    Route::post('/confirm/{token}', [ConfirmController::class, 'store'])
+        ->name('lead-magnets.confirm.store')
         ->middleware(SetBrandFromConfirmationToken::class.':token');
 
     /*

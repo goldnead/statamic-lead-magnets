@@ -26,6 +26,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $grant_ttl_days
  * @property array<int, string>|null $tags
  * @property string|null $marketing_list
+ * @property bool $list_via_confirmation
+ * @property string|null $list_consent_text
+ * @property string|null $confirmation_template
+ * @property string|null $delivery_template
  */
 class Resource extends Model
 {
@@ -41,6 +45,7 @@ class Resource extends Model
 
     protected $casts = [
         'requires_confirmation' => 'boolean',
+        'list_via_confirmation' => 'boolean',
         'published' => 'boolean',
         'link_ttl' => 'integer',
         'max_downloads' => 'integer',
@@ -155,6 +160,39 @@ class Resource extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Whether confirming this resource also confirms its mailing list.
+     *
+     * All four have to hold. Without a list there is nothing to subscribe to;
+     * without a confirmation nobody proved the address; and without a
+     * disclosure the reader was never told, so there is nothing they agreed
+     * to. A switch that is on while one of them is missing does nothing, and
+     * marketing asks for its own confirmation as before.
+     */
+    public function couplesListToConfirmation(): bool
+    {
+        return (bool) $this->list_via_confirmation
+            && (bool) $this->requires_confirmation
+            && trim((string) $this->marketing_list) !== ''
+            && $this->listConsentText() !== null;
+    }
+
+    /** The disclosure sentence, trimmed; null when there is none. */
+    public function listConsentText(): ?string
+    {
+        $text = trim((string) $this->list_consent_text);
+
+        return $text === '' ? null : $text;
+    }
+
+    /** The email-templates slug for this resource's mail of the given kind. */
+    public function mailTemplate(string $kind): string
+    {
+        $own = trim((string) ($kind === 'confirmation' ? $this->confirmation_template : $this->delivery_template));
+
+        return $own !== '' ? $own : (string) config('lead-magnets.mail.'.$kind.'_template', '');
     }
 
     public function isLink(): bool
