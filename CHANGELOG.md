@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (proposed: 3.7.0, minor)
+## 3.7.0 — 2026-10-04
 
 ### Several files per resource
 
