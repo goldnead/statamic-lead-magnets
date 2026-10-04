@@ -194,7 +194,8 @@ for both:
   called with `skip_confirmation` and `meta.consent` = method, list, wording,
   source (`lead-magnets:<handle>`), `requested_at`, `confirmed_at`.
 - An editor reinstating a pending grant is not the reader's consent: the list
-  then asks for its own confirmation.
+  then asks for its own confirmation. Switching coupling off stops mails
+  already sent from confirming into the list.
 - Unsubscribing does not touch the grant. The file stays downloadable.
 
 ### Mail templates per resource

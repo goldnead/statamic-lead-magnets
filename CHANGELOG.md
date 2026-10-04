@@ -21,7 +21,12 @@ resource behaves as before.
 - The subscription goes through marketing's public `subscribe()` with `skip_confirmation` and
   `meta.consent`: method, list, wording, source (`lead-magnets:<handle>`), `requested_at`,
   `confirmed_at`. An editor reinstating a pending grant does not count as the reader's consent:
-  the list then asks for its own confirmation, as before.
+  the list then asks for its own confirmation, as before. Neither does a press whose activation
+  failed or lost the race (held in memory for the one activation, `ListConsentPress`), nor an old
+  copy of the disclosure on a grant asked for again (every request drops it).
+- Switching coupling off stops confirmation mails already sent from subscribing into the list.
+- A confirmation template that leaves the disclosure out, and a confirmed subscription that cannot
+  be recorded (marketing missing, list missing), are named in the log.
 - Unsubscribing from the list does not touch the grant; the file stays downloadable.
 
 ### Mail templates per resource

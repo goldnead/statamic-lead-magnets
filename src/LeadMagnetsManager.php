@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets;
 
+use Carbon\CarbonImmutable;
 use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
@@ -9,6 +10,7 @@ use Goldnead\LeadMagnets\Services\DeliveryService;
 use Goldnead\LeadMagnets\Services\DownloadLink;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Goldnead\LeadMagnets\Support\EmailNormalizer;
+use Goldnead\LeadMagnets\Support\ListConsentPress;
 
 /**
  * The public API, behind the `LeadMagnets` facade.
@@ -90,10 +92,27 @@ class LeadMagnetsManager
 
         // A grant that also confirms a mailing list is redeemed by a button
         // press, not by opening the link (see `ConfirmController`), and the
-        // press is what the consent record names. Stamped before activation,
-        // because the list is subscribed inside it.
+        // press is what the consent record names. It is held in memory for the
+        // duration of this activation only (see `ListConsentPress`): the list
+        // is subscribed inside the activation, and a press whose activation
+        // failed or lost the race must leave nothing behind that a later
+        // reinstate could mistake for consent.
         if ($grant->isPending() && $grant->couplesList()) {
-            $this->grants->markListConsentConfirmed($grant);
+            $pressedAt = CarbonImmutable::now('UTC')->toIso8601String();
+            $press = app(ListConsentPress::class);
+            $press->hold($grant->id, $pressedAt);
+
+            try {
+                $won = $this->grants->activate($grant);
+            } finally {
+                $press->release($grant->id);
+            }
+
+            if ($won) {
+                $this->grants->recordListConsentConfirmed($grant, $pressedAt);
+            }
+
+            return $grant->refresh();
         }
 
         $this->grants->activate($grant);

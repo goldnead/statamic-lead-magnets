@@ -1,6 +1,7 @@
 <?php
 
 use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
@@ -11,6 +12,7 @@ use Goldnead\LeadMagnets\Tests\Fixtures\FakeMailingListRepository;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeMarketingService;
 use Goldnead\LeadMagnets\Tests\Fixtures\SiblingStubs;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /*
  * One confirmation for the file and the list.
@@ -279,4 +281,80 @@ it('uses the delivery template named on the resource before the configured one',
 
     app(LeadMagnetsManager::class)->request(Goldnead\LeadMagnets\Models\Resource::query()->where('handle', 'other')->sole(), 'b@example.com');
     expect(lastMailBody())->toContain('Allgemein');
+});
+
+it('keeps the confirmation it recorded on the grant once the claim was won', function () {
+    $resource = coupledResource();
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    $this->post(route('lead-magnets.confirm.store', ['token' => tokenFromLastConfirmationMail()]))->assertOk();
+
+    expect(Grant::query()->sole()->meta['list_consent']['confirmed_at'] ?? null)->not->toBeNull();
+});
+
+it('does not reuse an old confirmed consent when a lapsed grant is asked for again without a confirmation', function () {
+    $resource = coupledResource();
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+    $this->post(route('lead-magnets.confirm.store', ['token' => tokenFromLastConfirmationMail()]))->assertOk();
+
+    // The access window closed, and the editor has since switched the
+    // confirmation off.
+    Grant::query()->with('entitlement')->sole()->entitlement->forceFill(['expires_at' => now()->subDay()])->save();
+    $resource->forceFill(['requires_confirmation' => false])->save();
+    FakeMarketingService::$subscriptions = [];
+
+    app(LeadMagnetsManager::class)->request($resource->fresh(), 'reader@example.com');
+
+    expect(FakeMarketingService::$subscriptions)->toHaveCount(1)
+        ->and(FakeMarketingService::$subscriptions[0]['context'])->not->toHaveKey('skip_confirmation')
+        ->and(Grant::query()->sole()->meta['list_consent'] ?? null)->toBeNull();
+});
+
+it('leaves no consent behind when the press did not activate the grant', function () {
+    $resource = coupledResource();
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+    $token = tokenFromLastConfirmationMail();
+
+    // An activation that cannot happen: the entitlement row is gone.
+    Entitlement::query()->delete();
+
+    $this->post(route('lead-magnets.confirm.store', ['token' => $token]));
+
+    expect(Grant::query()->sole()->meta['list_consent']['confirmed_at'] ?? null)->toBeNull()
+        ->and(FakeMarketingService::$subscriptions)->toBe([]);
+});
+
+it('stops an already mailed link from confirming into the list once the resource is decoupled', function () {
+    $resource = coupledResource();
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+    $token = tokenFromLastConfirmationMail();
+
+    $resource->forceFill(['list_via_confirmation' => false])->save();
+
+    // Back to the plain flow: the link confirms the file, the list asks itself.
+    $this->get(route('lead-magnets.confirm', ['token' => $token]))->assertOk();
+
+    expect(Grant::query()->with('entitlement')->sole()->state())->toBe(EntitlementState::Active)
+        ->and(FakeMarketingService::$subscriptions)->toHaveCount(1)
+        ->and(FakeMarketingService::$subscriptions[0]['context'])->not->toHaveKey('skip_confirmation');
+});
+
+it('names a confirmation template that leaves the disclosure out', function () {
+    Log::spy();
+
+    FakeEmailTemplatesFacade::$templates['silent'] = new FakeEmailTemplate('<a href="{{ confirm_url }}">Ja</a>');
+
+    coupledResource(['confirmation_template' => 'silent']);
+
+    app(LeadMagnetsManager::class)->request(Resource::query()->sole(), 'reader@example.com');
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn ($message) => str_contains($message, '{{ list_consent_text }}'))
+        ->once();
+});
+
+it('serves the confirm button through the web middleware, so the form carries a session and a CSRF token', function () {
+    $route = app('router')->getRoutes()->getByName('lead-magnets.confirm.store');
+
+    expect($route->gatherMiddleware())->toContain('web');
 });

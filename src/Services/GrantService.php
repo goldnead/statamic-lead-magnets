@@ -68,6 +68,12 @@ class GrantService
 
         $grant->requested_at = Carbon::now();
         $grant->meta = array_merge($grant->meta ?? [], $meta);
+
+        // The disclosure copy belongs to one confirmation mail and nothing
+        // else. Whatever an earlier mail (or a caller's meta) left is dropped
+        // here, on every path, and only the path that sends a confirmation
+        // writes a fresh one (see withListConsent()).
+        $grant->meta = array_diff_key($grant->meta, ['list_consent' => true]);
         $grant->save();
         $grant->setRelation('resource', $resource);
 
@@ -316,23 +322,20 @@ class GrantService
     }
 
     /**
-     * Record that the reader pressed the button on a coupled confirmation.
-     *
-     * Written before activation, because the marketing bridge runs inside it
-     * and reads this stamp as the proof that the person, not an editor and not
-     * a link scanner, agreed to the list. A press that then loses the
-     * activation race leaves a stamp on a grant that is already active, which
-     * the bridge never reads again.
+     * Note on the grant when the reader confirmed the list, after the claim
+     * that the press caused was won. A record for the grant's own screen; the
+     * consent itself is in marketing's subscription.
      */
-    public function markListConsentConfirmed(Grant $grant): void
+    public function recordListConsentConfirmed(Grant $grant, string $confirmedAt): void
     {
+        $grant->refresh();
         $meta = $grant->meta ?? [];
 
         if (! is_array($meta['list_consent'] ?? null)) {
             return;
         }
 
-        $meta['list_consent']['confirmed_at'] = CarbonImmutable::now('UTC')->toIso8601String();
+        $meta['list_consent']['confirmed_at'] = $confirmedAt;
 
         $grant->forceFill(['meta' => $meta])->save();
     }
@@ -354,7 +357,6 @@ class GrantService
     protected function withListConsent(Grant $grant, Resource $resource): array
     {
         $meta = $grant->meta ?? [];
-        unset($meta['list_consent']);
 
         if ($resource->couplesListToConfirmation()) {
             $meta['list_consent'] = [

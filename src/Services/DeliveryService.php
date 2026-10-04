@@ -62,6 +62,15 @@ class DeliveryService
             ],
         );
 
+        // The disclosure has to be in front of the reader. The confirmation
+        // page shows it next to the button whatever the mail says, but a mail
+        // that promises a download and is silent about the newsletter is the
+        // opposite of the point. Named, so somebody adds the variable.
+        if ($rendered !== null && ($consent = $grant->listConsent()) !== null
+            && ! str_contains($rendered['html'], e($consent['text']))) {
+            Log::warning('statamic-lead-magnets: the confirmation template ['.$grant->resource?->mailTemplate('confirmation').'] for ['.$grant->resource?->handle.'] does not show the newsletter disclosure. Add {{ list_consent_text }} to it.');
+        }
+
         // Through the brand mailer, not Mail::to(): both mails here go to a
         // member of the public who just handed over an address, and one that
         // arrives under another brand's name asks them to trust a sender they

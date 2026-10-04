@@ -3,8 +3,10 @@
 namespace Goldnead\LeadMagnets\Integrations;
 
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Support\ListConsentPress;
 use Goldnead\Marketing\Contracts\Repositories\MailingListRepository;
 use Goldnead\Marketing\Services\SubscriptionService;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Optional: goldnead/statamic-marketing.
@@ -25,8 +27,9 @@ use Goldnead\Marketing\Services\SubscriptionService;
  * (`Resource::couplesListToConfirmation()`). Then the form and the confirmation
  * mail carry a disclosure sentence, the grant keeps a copy of it, and the
  * reader confirms on a button rather than by opening the link. Only when all of
- * that happened — the copy is on the grant and the button press stamped it —
- * is marketing told to skip its own confirmation (`skip_confirmation`, the
+ * that happened — the copy is on the grant, the resource still couples, and the
+ * activation running right now was caused by the button press
+ * (`ListConsentPress`) — is marketing told to skip its own confirmation (`skip_confirmation`, the
  * option marketing has for consent established elsewhere), and the
  * subscription's meta carries the consent: method, list, wording, source,
  * when it was asked for and when it was confirmed.
@@ -67,7 +70,18 @@ class MarketingBridge extends Bridge
         // The list the reader was shown wins over what the resource says now.
         $handle = $consent['list'] ?? $grant->resource?->marketing_list;
 
-        if (! $handle || ! $this->available()) {
+        if (! $handle) {
+            return;
+        }
+
+        if (! $this->available()) {
+            // The reader was told they would be subscribed and pressed the
+            // button for it. Saying nothing here would be the quiet kind of
+            // failure that nobody notices until the list is short.
+            if ($consent !== null) {
+                Log::warning('[lead-magnets] '.$grant->email.' confirmed the list ['.$handle.'] through ['.$grant->resource?->handle.'], but the marketing addon is not available. Not subscribed.');
+            }
+
             return;
         }
 
@@ -76,6 +90,10 @@ class MarketingBridge extends Bridge
             $list = $lists->find($handle);
 
             if (! $list) {
+                if ($consent !== null) {
+                    Log::warning('[lead-magnets] The list ['.$handle.'] named on ['.$grant->resource?->handle.'] does not exist. A confirmed subscription was not recorded.');
+                }
+
                 return null;
             }
 
@@ -113,13 +131,19 @@ class MarketingBridge extends Bridge
      */
     protected function confirmedConsent(Grant $grant): ?array
     {
+        $pressedAt = app(ListConsentPress::class)->heldFor((int) $grant->id);
         $consent = $grant->listConsent();
 
-        if ($consent === null || ($consent['confirmed_at'] ?? '') === '') {
+        if ($pressedAt === null || $consent === null || ! $grant->couplesList()) {
             return null;
         }
 
-        /** @var array{list: string, text: string, source: string, requested_at: string, confirmed_at: string} $consent */
-        return $consent;
+        return [
+            'list' => $consent['list'],
+            'text' => $consent['text'],
+            'source' => $consent['source'],
+            'requested_at' => $consent['requested_at'],
+            'confirmed_at' => $pressedAt,
+        ];
     }
 }
