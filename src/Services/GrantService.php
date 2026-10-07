@@ -67,7 +67,8 @@ class GrantService
             ?? new Grant(['resource_id' => $resource->id, 'email' => $email, 'attempt' => 1]);
 
         $grant->requested_at = Carbon::now();
-        $grant->meta = array_merge($grant->meta ?? [], $meta);
+        // The disclosure copy is this addon's to write, never a caller's.
+        $grant->meta = array_merge($grant->meta ?? [], array_diff_key($meta, ['list_consent' => true]));
         $grant->save();
         $grant->setRelation('resource', $resource);
 
@@ -109,7 +110,14 @@ class GrantService
             // No confirmation asked for: the grant is born pending and claimed
             // in the same call, so activation runs through the one atomic path
             // and the delivery listener fires exactly once here too.
-            $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
+            // No confirmation mail, so no disclosure copy: an earlier one (a
+            // lapsed period, a resource that used to confirm) would otherwise
+            // read as consent to a mail that was never sent.
+            $grant->forceFill([
+                'token_hash' => null,
+                'confirm_expires_at' => null,
+                'meta' => array_diff_key($grant->meta ?? [], ['list_consent' => true]),
+            ])->save();
 
             ResourceRequested::dispatch($grant);
 
@@ -127,6 +135,7 @@ class GrantService
         $grant->forceFill([
             'token_hash' => ConfirmationToken::hash($token),
             'confirm_expires_at' => $this->confirmationDeadline(),
+            'meta' => $this->withListConsent($grant, $resource),
         ])->save();
 
         $grant->plainToken = $token;
@@ -314,7 +323,54 @@ class GrantService
         });
     }
 
+    /**
+     * Note on the grant when the reader confirmed the list, after the claim
+     * that the press caused was won. A record for the grant's own screen; the
+     * consent itself is in marketing's subscription.
+     */
+    public function recordListConsentConfirmed(Grant $grant, string $confirmedAt): void
+    {
+        $grant->refresh();
+        $meta = $grant->meta ?? [];
+
+        if (! is_array($meta['list_consent'] ?? null)) {
+            return;
+        }
+
+        $meta['list_consent']['confirmed_at'] = $confirmedAt;
+
+        $grant->forceFill(['meta' => $meta])->save();
+    }
+
     // --------------------------------------------------------------- internals
+
+    /**
+     * The grant's meta with the disclosure the confirmation mail is about to
+     * carry, or without one when the resource does not couple its list.
+     *
+     * A copy, not a reference to the resource: the consent record has to say
+     * what this reader was shown, and an editor may change the sentence
+     * between the mail and the click. A fresh request replaces the copy,
+     * because the new mail shows the new sentence; a resource that stopped
+     * coupling drops it, so an older mail cannot be confirmed into the list.
+     *
+     * @return array<string, mixed>
+     */
+    protected function withListConsent(Grant $grant, Resource $resource): array
+    {
+        $meta = array_diff_key($grant->meta ?? [], ['list_consent' => true]);
+
+        if ($resource->couplesListToConfirmation()) {
+            $meta['list_consent'] = [
+                'list' => (string) $resource->marketing_list,
+                'text' => (string) $resource->listConsentText(),
+                'source' => 'lead-magnets:'.$resource->handle,
+                'requested_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+            ];
+        }
+
+        return $meta;
+    }
 
     /**
      * The entitlement behind a grant, created pending if it has none yet.

@@ -52,9 +52,27 @@ class DeliveryService
         $url = route('lead-magnets.confirm', ['token' => $grant->plainToken]);
 
         $rendered = $this->templates->render(
-            (string) config('lead-magnets.mail.confirmation_template', ''),
-            $this->variables($grant) + ['confirm_url' => $url],
+            (string) $grant->resource?->mailTemplate('confirmation'),
+            $this->variables($grant) + [
+                'confirm_url' => $url,
+                // The disclosure for a resource that also subscribes a list,
+                // empty otherwise. The copy on the grant, which is what the
+                // consent record will carry.
+                'list_consent_text' => (string) ($grant->listConsent()['text'] ?? ''),
+            ],
         );
+
+        // The disclosure has to be in front of the reader. The confirmation
+        // page shows it next to the button whatever the mail says, but a mail
+        // that promises a download and is silent about the newsletter is the
+        // opposite of the point. Named, so somebody adds the variable.
+        if ($rendered !== null && ($consent = $grant->listConsent()) !== null
+            && ! str_contains(
+                html_entity_decode(strip_tags($rendered['html']), ENT_QUOTES | ENT_HTML5),
+                $consent['text'],
+            )) {
+            Log::warning('statamic-lead-magnets: the confirmation template ['.$grant->resource?->mailTemplate('confirmation').'] for ['.$grant->resource?->handle.'] does not show the newsletter disclosure. Add {{ list_consent_text }} to it.');
+        }
 
         // Through the brand mailer, not Mail::to(): both mails here go to a
         // member of the public who just handed over an address, and one that
@@ -109,7 +127,7 @@ class DeliveryService
         $fileGroupsView = 'lead-magnets::partials.file-groups';
 
         $rendered = $this->templates->render(
-            (string) config('lead-magnets.mail.delivery_template', ''),
+            (string) $grant->resource?->mailTemplate('delivery'),
             $this->variables($grant) + [
                 'download_url' => $url,
                 // Rendered by Blade, which escapes labels and group names; the
@@ -167,7 +185,7 @@ class DeliveryService
 
         if ($rendered !== null) {
             if (! str_contains($rendered['html'], $firstKey)) {
-                Log::warning('statamic-lead-magnets: the delivery mail template ['.config('lead-magnets.mail.delivery_template').'] does not list the files of ['.$handle.']. Add {{ file_list }} to it.');
+                Log::warning('statamic-lead-magnets: the delivery mail template ['.$grant->resource?->mailTemplate('delivery').'] does not list the files of ['.$handle.']. Add {{ file_list }} to it.');
             }
 
             return;

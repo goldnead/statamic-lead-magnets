@@ -2,6 +2,9 @@
 
 return [
     'title' => 'Dein Download',
+    'confirm_title' => 'Noch ein Klick.',
+    'confirm_body' => 'Bestätige diese Adresse, dann kommt ":title".',
+    'confirm_button' => 'Bestätigen',
     'confirmed_title' => 'Bestätigt.',
     'confirmed_body' => '":title" ist auf dem Weg in dein Postfach.',
     'confirmed_hint' => 'Verschickt an :email. Schau in den Spam-Ordner, wenn es länger als ein paar Minuten dauert.',

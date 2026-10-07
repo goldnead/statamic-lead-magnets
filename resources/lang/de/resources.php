@@ -22,6 +22,7 @@ return [
     'files_group_instructions' => 'Zum Beispiel eine Besetzung. Leer: die Dateien stehen ohne Überschrift.',
     'files_count' => ':count Dateien',
     'files_duplicate' => 'Dieselbe Datei steht zweimal in der Liste. Jede Datei kann nur einmal vorkommen.',
+    'list_coupling_needs_confirmation' => 'Liste über die Bestätigung braucht die Bestätigung per E-Mail.',
     'file_unknown' => 'Diese Datei liegt nicht im Container dieses Addons. Bitte eine Datei aus der Auswahl nehmen.',
     'container_title' => 'Lead Magnets',
     'disk_public' => 'Der Speicher :disk ist aus dem Web erreichbar. Dateien in diesem Container lassen sich damit ohne Bestätigung und ohne signierten Link abrufen. Bitte einen Speicher ohne öffentliche URL und ohne serve verwenden.',

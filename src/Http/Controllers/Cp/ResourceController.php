@@ -183,6 +183,10 @@ class ResourceController extends Controller
                 'grant_ttl_days' => $record->grant_ttl_days,
                 'tags' => $record->tagList(),
                 'marketing_list' => $record->marketing_list,
+                'list_via_confirmation' => (bool) $record->list_via_confirmation,
+                'list_consent_text' => $record->list_consent_text,
+                'confirmation_template' => $record->confirmation_template,
+                'delivery_template' => $record->delivery_template,
             ],
             // The detail page is the form — the same shape the create page
             // gets. Without the permission to change anything it is handed no
@@ -495,14 +499,31 @@ class ResourceController extends Controller
             'files.*.label' => ['nullable', 'string', 'max:191'],
             'files.*.group' => ['nullable', 'string', 'max:191'],
             'link_url' => ['nullable', 'url', 'max:2000', 'required_if:delivery_type,link'],
-            'requires_confirmation' => ['nullable', 'boolean'],
+            'requires_confirmation' => [
+                'nullable',
+                'boolean',
+                // Coupling the list to a confirmation that is never sent would
+                // promise the reader a step that does not happen.
+                function (string $attribute, mixed $value, callable $fail) use ($request): void {
+                    if ($request->boolean('list_via_confirmation') && $value !== null && ! $request->boolean('requires_confirmation')) {
+                        $fail(__('lead-magnets::resources.list_coupling_needs_confirmation'));
+                    }
+                },
+            ],
             'published' => ['nullable', 'boolean'],
             'link_ttl' => ['nullable', 'integer', 'min:1', 'max:525600'],
             'max_downloads' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'grant_ttl_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:191'],
-            'marketing_list' => ['nullable', 'string', 'max:191'],
+            'marketing_list' => ['nullable', 'string', 'max:191', Rule::requiredIf(fn () => $request->boolean('list_via_confirmation'))],
+            // One confirmation for the file and the list. Without a list and a
+            // disclosure there is nothing to couple and nothing the reader
+            // agreed to, so the switch is refused rather than saved inert.
+            'list_via_confirmation' => ['nullable', 'boolean'],
+            'list_consent_text' => ['nullable', 'string', 'max:2000', Rule::requiredIf(fn () => $request->boolean('list_via_confirmation'))],
+            'confirmation_template' => ['nullable', 'string', 'max:191'],
+            'delivery_template' => ['nullable', 'string', 'max:191'],
         ]);
     }
 
@@ -548,7 +569,18 @@ class ResourceController extends Controller
             'grant_ttl_days' => $data['grant_ttl_days'] ?? null,
             'tags' => $data['tags'] ?? [],
             'marketing_list' => $data['marketing_list'] ?? null,
+            'list_via_confirmation' => (bool) ($data['list_via_confirmation'] ?? false),
+            'list_consent_text' => $this->trimmedOrNull($data['list_consent_text'] ?? null),
+            'confirmation_template' => $this->trimmedOrNull($data['confirmation_template'] ?? null),
+            'delivery_template' => $this->trimmedOrNull($data['delivery_template'] ?? null),
         ];
+    }
+
+    protected function trimmedOrNull(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     /**

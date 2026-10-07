@@ -13,6 +13,7 @@ use Goldnead\LeadMagnets\Integrations\Insights\Requested;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Goldnead\LeadMagnets\Sending\BrandSenderIdentity;
+use Goldnead\LeadMagnets\Support\ListConsentPress;
 use Goldnead\LeadMagnets\Support\Settings;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
@@ -111,6 +112,9 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(BrandMailer::class);
 
         $this->app->singleton(SiblingBridges::class);
+        // Scoped: one per request or job, so a long-lived worker carries
+        // nothing from one confirmation into the next.
+        $this->app->scoped(ListConsentPress::class);
     }
 
     /**

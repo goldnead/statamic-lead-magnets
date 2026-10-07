@@ -22,6 +22,7 @@ return [
     'files_group_instructions' => 'For example a voicing. Empty: the files are listed without a heading.',
     'files_count' => ':count files',
     'files_duplicate' => 'The same file is listed twice. Each file can appear once.',
+    'list_coupling_needs_confirmation' => 'Subscribing through the confirmation needs the confirmation mail switched on.',
     'file_unknown' => 'That file is not in this addon\'s container. Please pick one from the browser.',
     'container_title' => 'Lead Magnets',
     'disk_public' => 'The disk :disk is reachable from the web, so files in this container can be fetched without a confirmation and without a signed link. Use a disk with no public URL and no serve.',

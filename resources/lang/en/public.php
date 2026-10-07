@@ -2,6 +2,9 @@
 
 return [
     'title' => 'Your download',
+    'confirm_title' => 'One more click.',
+    'confirm_body' => 'Confirm this address and ":title" is on its way.',
+    'confirm_button' => 'Confirm',
     'confirmed_title' => 'Confirmed.',
     'confirmed_body' => '":title" is on its way to your inbox.',
     'confirmed_hint' => 'Sent to :email. Check the spam folder if it takes more than a few minutes.',

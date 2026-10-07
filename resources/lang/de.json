@@ -51,5 +51,14 @@
     "The visitor is forwarded here through the signed route, so a link is counted and audited exactly like a file.": "Der Besucher wird über die signierte Route hierher weitergeleitet, damit ein Link genauso gezählt und protokolliert wird wie eine Datei.",
     "On: the address gets a confirmation mail and the download only after confirming. Off: the download goes out immediately.": "An: die Adresse bekommt eine Bestätigungsmail und den Download erst nach der Bestätigung. Aus: der Download geht sofort raus.",
     "Comma separated. Written onto the contact when access activates. Needs the Leadhub addon; ignored without it.": "Komma-getrennt. Wird auf den Kontakt geschrieben, sobald der Zugang aktiv wird. Braucht das Leadhub-Addon; ohne das Addon ohne Wirkung.",
-    "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon.": "Trägt die bestätigte Adresse über das Marketing-Addon in diesen Verteiler ein, nach dessen eigenen Einwilligungsregeln. Ohne das Addon ohne Wirkung."
+    "Subscribes the confirmed address to this list through the Marketing addon, following that list's own consent rules. Ignored without the addon.": "Trägt die bestätigte Adresse über das Marketing-Addon in diesen Verteiler ein, nach dessen eigenen Einwilligungsregeln. Ohne das Addon ohne Wirkung.",
+    "Subscribe through this confirmation": "Liste über diese Bestätigung",
+    "On: confirming the download also confirms the mailing list, and the list sends no confirmation of its own. Needs double opt-in, a list and the disclosure below.": "An: Wer den Download bestätigt, bestätigt damit auch den Verteiler, und der Verteiler schickt keine eigene Bestätigung. Braucht Double-Opt-in, einen Verteiler und den Hinweis darunter.",
+    "Disclosure": "Hinweis",
+    "One sentence the reader sees in the confirmation mail and on the confirmation page, and that the consent record keeps. Show the same sentence on your form.": "Ein Satz, den die Person in der Bestätigungsmail und auf der Bestätigungsseite liest und den die Einwilligung festhält. Derselbe Satz gehört ans Formular.",
+    "Mail templates": "Mailvorlagen",
+    "Confirmation template": "Vorlage Bestätigung",
+    "Delivery template": "Vorlage Lieferung",
+    "Slug of an Email Templates entry for this resource. Leave empty for the configured default.": "Slug eines Eintrags in Email Templates für diese Ressource. Leer heißt: die eingestellte Vorlage.",
+    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug eines Eintrags in Email Templates für diese Ressource. {{ file_list }} setzt die Dateiliste ein. Leer heißt: die eingestellte Vorlage."
 }

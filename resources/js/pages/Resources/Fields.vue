@@ -214,6 +214,49 @@ const fileBlueprintFields = computed(
                     >
                         <Input v-model="form.marketing_list" :read-only="readOnly" placeholder="newsletter" />
                     </Field>
+
+                    <Field
+                        :label="__('Subscribe through this confirmation')"
+                        :error="errors.list_via_confirmation"
+                        :read-only="readOnly"
+                        :instructions="__('On: confirming the download also confirms the mailing list, and the list sends no confirmation of its own. Needs double opt-in, a list and the disclosure below.')"
+                    >
+                        <Switch v-model="form.list_via_confirmation" :disabled="readOnly" />
+                    </Field>
+
+                    <Field
+                        v-if="form.list_via_confirmation"
+                        :label="__('Disclosure')"
+                        :error="errors.list_consent_text"
+                        :read-only="readOnly"
+                        :instructions="__('One sentence the reader sees in the confirmation mail and on the confirmation page, and that the consent record keeps. Show the same sentence on your form.')"
+                    >
+                        <Textarea v-model="form.list_consent_text" rows="2" :read-only="readOnly" />
+                    </Field>
+                </div>
+            </Card>
+
+            <Card>
+                <Heading :text="__('Mail templates')" class="mb-4" />
+
+                <div class="space-y-4">
+                    <Field
+                        :label="__('Confirmation template')"
+                        :error="errors.confirmation_template"
+                        :read-only="readOnly"
+                        :instructions="__('Slug of an Email Templates entry for this resource. Leave empty for the configured default.')"
+                    >
+                        <Input v-model="form.confirmation_template" :read-only="readOnly" />
+                    </Field>
+
+                    <Field
+                        :label="__('Delivery template')"
+                        :error="errors.delivery_template"
+                        :read-only="readOnly"
+                        :instructions="__('Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.')"
+                    >
+                        <Input v-model="form.delivery_template" :read-only="readOnly" />
+                    </Field>
                 </div>
             </Card>
         </div>
