@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (3.8.0)
+## 3.8.0 — 2026-10-07
 
 ### One confirmation for the file and the mailing list
 
