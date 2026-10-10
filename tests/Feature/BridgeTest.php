@@ -340,6 +340,21 @@ it('also refuses a subject that keeps an unresolved placeholder', function () {
         ->and(Grant::query()->sole()->delivered_at)->toBeNull();
 });
 
+it('also refuses a template with an unclosed brace pair', function () {
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>{{ download_url }}</p><p>{{ if has_rou',
+        'Dein {{ resource_title }}',
+    );
+
+    $resource = makeResource(['requires_confirmation' => false]);
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    expect(sentMailCount())->toBe($before)
+        ->and(Grant::query()->sole()->delivered_at)->toBeNull();
+});
+
 it('does not mistake a value that contains braces for an unresolved placeholder', function () {
     FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
         '<p>{{ resource_title }}: {{ download_url }}</p>',

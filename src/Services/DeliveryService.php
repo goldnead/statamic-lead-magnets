@@ -222,7 +222,7 @@ class DeliveryService
      */
     protected function holdForTemplate(Grant $grant, string $kind, UnresolvedPlaceholders $e): void
     {
-        Log::error('statamic-lead-magnets: the '.$kind.' mail for ['.$grant->resource?->handle.'] was not sent. The template ['.$e->slug.'] still contains ['.mb_substr($e->snippet, 0, 200).'] after the variables were filled in. Delivery templates support plain {{ variable }} only, no {{ if }}.');
+        Log::error('statamic-lead-magnets: the '.$kind.' mail for ['.$grant->resource?->handle.'] was not sent. The template ['.$e->slug.'] still contains ['.mb_substr($e->snippet, 0, 200).'] after the variables were filled in. Mail templates support plain {{ variable }} only, no {{ if }}.');
 
         $this->note($grant, $kind.'_template_unresolved');
     }

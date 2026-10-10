@@ -107,7 +107,9 @@ class EmailTemplatesBridge extends Bridge
             $text = str_replace(['{{ '.$key.' }}', '{{'.$key.'}}'], '', $text);
         }
 
-        return preg_match('/\{\{.*?\}\}/s', $text, $match) === 1 ? $match[0] : null;
+        // A `{{` with no closing `}}` (a half-deleted tag) is as broken as a
+        // whole one, so it counts too.
+        return preg_match('/\{\{.*?\}\}|\{\{.{0,40}/s', $text, $match) === 1 ? $match[0] : null;
     }
 
     /**
