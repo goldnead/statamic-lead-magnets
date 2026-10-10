@@ -77,6 +77,23 @@ it('drops a return URL that was not signed', function () {
         ->assertOk();
 });
 
+it('accepts a temporary signed URL, and refuses it once it has expired', function () {
+    $temporary = URL::temporarySignedRoute('test.weiter', now()->addHours(73), ['step' => 'danke']);
+
+    $grant = requestWithReturn($temporary);
+    expect($grant->meta['return_url'])->toBe($temporary);
+
+    // The link outlived the reader's patience: the ordinary page, no redirect.
+    $this->travel(74)->hours();
+    Grant::query()->update(['confirm_expires_at' => now()->addHour()]);
+
+    $this->get(route('lead-magnets.confirm', ['token' => tokenFromLastConfirmationMail()]))
+        ->assertOk()
+        ->assertSee('data-state="active"', false);
+
+    expect(ReturnUrl::accept($temporary))->toBeNull();
+});
+
 it('drops a signed URL whose query string was edited', function () {
     $edited = str_replace('/weiter/danke', '/weiter/anderswo', signedBack());
 
