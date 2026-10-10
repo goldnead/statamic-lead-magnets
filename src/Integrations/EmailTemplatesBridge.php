@@ -57,7 +57,7 @@ class EmailTemplatesBridge extends Bridge
             return null;
         }
 
-        return $this->attempt('email-templates render ['.$slug.']', function () use ($facade, $slug, $variables) {
+        $rendered = $this->attempt('email-templates render ['.$slug.']', function () use ($facade, $slug, $variables) {
             $template = $facade::resolve($slug);
 
             if ($template === null) {
@@ -77,8 +77,39 @@ class EmailTemplatesBridge extends Bridge
                 // A subject line is not HTML. Escaping it would put a literal
                 // `&amp;` in front of the reader instead of protecting one.
                 'subject' => $subject === null ? null : $this->interpolate($subject, $variables, escape: false),
+                // Looked for in the template, not in the result: a value a
+                // visitor or an editor typed may contain braces and is no leftover.
+                'leftover' => $this->leftover($html, $variables) ?? ($subject === null ? null : $this->leftover($subject, $variables)),
             ];
         });
+
+        if ($rendered === null) {
+            return null;
+        }
+
+        // Outside attempt(): that swallows every Throwable, and falling back to
+        // the Blade view would hide the template the editor broke.
+        if ($rendered['leftover'] !== null) {
+            throw new UnresolvedPlaceholders($slug, $rendered['leftover']);
+        }
+
+        return ['html' => $rendered['html'], 'subject' => $rendered['subject']];
+    }
+
+    /**
+     * The first `{{ … }}` left in the text once the known variables are gone.
+     *
+     * @param  array<string, string>  $variables
+     */
+    protected function leftover(string $text, array $variables): ?string
+    {
+        foreach (array_keys($variables) as $key) {
+            $text = str_replace(['{{ '.$key.' }}', '{{'.$key.'}}'], '', $text);
+        }
+
+        // A `{{` with no closing `}}` (a half-deleted tag) is as broken as a
+        // whole one, so it counts too.
+        return preg_match('/\{\{.*?\}\}|\{\{.{0,40}/s', $text, $match) === 1 ? $match[0] : null;
     }
 
     /**

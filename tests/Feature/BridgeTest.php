@@ -18,6 +18,7 @@ use Goldnead\LeadMagnets\Tests\Fixtures\FakeMailingListRepository;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeMarketingService;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeSuppressionGate;
 use Goldnead\LeadMagnets\Tests\Fixtures\SiblingStubs;
+use Illuminate\Support\Facades\Log;
 
 /*
  * The optional bridges, against stand-ins.
@@ -296,4 +297,87 @@ it('re-sends a delivery for an address that has since been released', function (
 
     expect(app(DeliveryService::class)->deliver($grant))->toBeTrue()
         ->and($grant->fresh()->delivered_at)->not->toBeNull();
+});
+
+it('refuses to send a delivery mail whose template keeps an unresolved placeholder', function () {
+    // Brevo silently dropped such a mail on 10.10.2026 and the grant still said
+    // "delivered". An Antlers block is not a variable this bridge knows.
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>Hallo {{ resource_title }}</p>{{ if has_routine }}<p>Deine Routine</p>{{ /if }}<p>{{ download_url }}</p>',
+        'Dein {{ resource_title }}',
+    );
+
+    Log::spy();
+
+    $resource = makeResource(['requires_confirmation' => false]);
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    $grant = Grant::query()->sole();
+
+    expect(sentMailCount())->toBe($before)
+        ->and($grant->delivered_at)->toBeNull()
+        ->and($grant->meta['last_hold'])->toBe('delivery_template_unresolved');
+
+    Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains($message, $resource->handle)
+        && str_contains($message, 'lead-magnet-delivery')
+        && str_contains($message, '{{ if has_routine }}'))->once();
+});
+
+it('also refuses a subject that keeps an unresolved placeholder', function () {
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>{{ download_url }}</p>',
+        'Dein {{ unbekannt }}',
+    );
+
+    $resource = makeResource(['requires_confirmation' => false]);
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    expect(sentMailCount())->toBe($before)
+        ->and(Grant::query()->sole()->delivered_at)->toBeNull();
+});
+
+it('also refuses a template with an unclosed brace pair', function () {
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>{{ download_url }}</p><p>{{ if has_rou',
+        'Dein {{ resource_title }}',
+    );
+
+    $resource = makeResource(['requires_confirmation' => false]);
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    expect(sentMailCount())->toBe($before)
+        ->and(Grant::query()->sole()->delivered_at)->toBeNull();
+});
+
+it('does not mistake a value that contains braces for an unresolved placeholder', function () {
+    FakeEmailTemplatesFacade::$templates['lead-magnet-delivery'] = new FakeEmailTemplate(
+        '<p>{{ resource_title }}: {{ download_url }}</p>',
+        'Dein {{ resource_title }}',
+    );
+
+    $resource = makeResource(['requires_confirmation' => false, 'title' => 'Routine {{ 1 }}']);
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    expect(Grant::query()->sole()->delivered_at)->not->toBeNull();
+});
+
+it('holds a confirmation mail with an unresolved placeholder too', function () {
+    FakeEmailTemplatesFacade::$templates['lead-magnet-confirmation'] = new FakeEmailTemplate(
+        '{{ if x }}Hi{{ /if }} {{ confirm_url }}',
+    );
+
+    $resource = makeResource(['requires_confirmation' => true]);
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request($resource, 'reader@example.com');
+
+    expect(sentMailCount())->toBe($before)
+        ->and(Grant::query()->sole()->meta['last_hold'])->toBe('confirmation_template_unresolved');
 });
