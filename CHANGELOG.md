@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.8.1 — 2026-10-10
+
+### Fixed: open redirect on the request form
+
+The request endpoint followed whatever the hidden `_redirect` field held, so a link or form on
+the real domain could send a reader to any other site after the opt-in (phishing under the
+brand). `_redirect` is now followed only when it is a path on this site (one leading `/`) or an
+absolute http(s) URL with this request's own scheme, host and port. Protocol-relative URLs
+(`//host`), backslash and whitespace tricks, `javascript:`/`data:` schemes, credentials in the URL
+and non-string values are refused; the reader then lands on the previous page as if no
+`_redirect` had been sent. Relative paths such as `/thanks` keep working. Sites that put a
+relative path without a leading slash (`thanks`) or another host in `_redirect` must change it.
+
 ## 3.8.0 — 2026-10-07
 
 ### One confirmation for the file and the mailing list
