@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Http\Controllers\Web;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Services\GrantService;
+use Goldnead\LeadMagnets\Support\ReturnUrl;
 use Illuminate\Routing\Controller;
 
 /**
@@ -57,6 +58,15 @@ class ConfirmController extends Controller
         // already consumed are three different things behind the scenes and
         // one thing here: nothing to confirm.
         abort_if($grant === null, 404);
+
+        // A caller that asked on the reader's behalf may have said where the
+        // reader goes next (see ReturnUrl). Only for access that stands: a
+        // lapsed link or a revoked grant gets the page that says so, not a
+        // redirect into a flow it cannot continue. 303, because the button on
+        // the consent page is a POST and the target is a page to look at.
+        if ($grant->state()->grantsAccess() && ($url = ReturnUrl::for($grant)) !== null) {
+            return redirect()->to($url, 303);
+        }
 
         return response()->view('lead-magnets::confirmed', [
             'grant' => $grant,

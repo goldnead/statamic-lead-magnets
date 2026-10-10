@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Return URL for the confirmation link
+
+`LeadMagnets::request()` accepts `return_url` in its meta: a URL signed by the application, on the
+requesting host. After the reader confirmed, the confirmation link (and the consent button) redirects
+there with a 303 instead of showing the addon's page. This is how another addon, such as
+statamic-funnels, picks the reader up again at its next step.
+
+- Not an open redirect: the value is never read from the public form, anything unsigned or on
+  another host is dropped with a log warning, and the signature and host are checked again when the
+  link is followed.
+- A lapsed confirmation or a revoked grant does not redirect.
+- A repeat request replaces the return URL; one without a return URL clears the old one.
+- New class `Support\ReturnUrl`. No migration: the URL is kept in the grant's `meta`.
+
 ## 3.8.0 — 2026-10-07
 
 ### One confirmation for the file and the mailing list
