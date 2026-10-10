@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.9.0 — 2026-10-10
 
 ### Return URL for the confirmation link
 
