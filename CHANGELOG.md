@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.9.1 — 2026-10-11
+
+### A template with a leftover `{{ … }}` is no longer sent
+
+Only plain `{{ variable }}` placeholders are filled in. A template that kept an Antlers
+`{{ if }}` went to the relay as it was; Brevo silently dropped such a mail on 10.10.2026, and the
+grant was still marked delivered.
+
+- After the variables are filled in, a `{{ … }}` left in the subject or the body stops the send
+  (delivery mail and confirmation mail alike). Nothing goes to the relay and `delivered_at` stays
+  empty.
+- The error log names the resource handle, the template slug and the leftover snippet. The grant
+  carries `last_hold` = `delivery_template_unresolved` / `confirmation_template_unresolved`.
+- Values that happen to contain braces are not mistaken for a leftover. Templates without a leftover
+  render exactly as before.
+- README: delivery templates support plain variables only.
+
 ## 3.9.0 — 2026-10-10
 
 ### Return URL for the confirmation link

@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Services;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
 use Goldnead\LeadMagnets\Integrations\EmailTemplatesBridge;
 use Goldnead\LeadMagnets\Integrations\SuppressionBridge;
+use Goldnead\LeadMagnets\Integrations\UnresolvedPlaceholders;
 use Goldnead\LeadMagnets\Mail\ConfirmationMail;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
@@ -51,16 +52,22 @@ class DeliveryService
 
         $url = route('lead-magnets.confirm', ['token' => $grant->plainToken]);
 
-        $rendered = $this->templates->render(
-            (string) $grant->resource?->mailTemplate('confirmation'),
-            $this->variables($grant) + [
-                'confirm_url' => $url,
-                // The disclosure for a resource that also subscribes a list,
-                // empty otherwise. The copy on the grant, which is what the
-                // consent record will carry.
-                'list_consent_text' => (string) ($grant->listConsent()['text'] ?? ''),
-            ],
-        );
+        try {
+            $rendered = $this->templates->render(
+                (string) $grant->resource?->mailTemplate('confirmation'),
+                $this->variables($grant) + [
+                    'confirm_url' => $url,
+                    // The disclosure for a resource that also subscribes a list,
+                    // empty otherwise. The copy on the grant, which is what the
+                    // consent record will carry.
+                    'list_consent_text' => (string) ($grant->listConsent()['text'] ?? ''),
+                ],
+            );
+        } catch (UnresolvedPlaceholders $e) {
+            $this->holdForTemplate($grant, 'confirmation', $e);
+
+            return false;
+        }
 
         // The disclosure has to be in front of the reader. The confirmation
         // page shows it next to the button whatever the mail says, but a mail
@@ -126,15 +133,21 @@ class DeliveryService
         /** @var view-string $fileGroupsView */
         $fileGroupsView = 'lead-magnets::partials.file-groups';
 
-        $rendered = $this->templates->render(
-            (string) $grant->resource?->mailTemplate('delivery'),
-            $this->variables($grant) + [
-                'download_url' => $url,
-                // Rendered by Blade, which escapes labels and group names; the
-                // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
-                'file_list' => $groups === null ? '' : app('view')->make($fileGroupsView, ['groups' => $groups])->render(),
-            ],
-        );
+        try {
+            $rendered = $this->templates->render(
+                (string) $grant->resource?->mailTemplate('delivery'),
+                $this->variables($grant) + [
+                    'download_url' => $url,
+                    // Rendered by Blade, which escapes labels and group names; the
+                    // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
+                    'file_list' => $groups === null ? '' : app('view')->make($fileGroupsView, ['groups' => $groups])->render(),
+                ],
+            );
+        } catch (UnresolvedPlaceholders $e) {
+            $this->holdForTemplate($grant, 'delivery', $e);
+
+            return false;
+        }
 
         if ($groups !== null) {
             $this->warnWhenTemplateIgnoresList($grant, $rendered, $groups);
@@ -197,6 +210,21 @@ class DeliveryService
         if (! str_starts_with((string) realpath($path), $shipped) && ! str_contains((string) file_get_contents($path), 'groups')) {
             Log::warning('statamic-lead-magnets: the published delivery view ['.$path.'] does not list the files of ['.$handle.']. Republish it: php artisan vendor:publish --tag=lead-magnets-views --force');
         }
+    }
+
+    /**
+     * Do not send a mail whose template keeps a `{{ … }}`.
+     *
+     * Logged as an error naming the resource, the template and the leftover,
+     * and left on the grant as `last_hold` — the same place the other holds
+     * (suppressed, sender refused) already go, so the CP shows it with no new
+     * surface. Delivery templates support plain variables only.
+     */
+    protected function holdForTemplate(Grant $grant, string $kind, UnresolvedPlaceholders $e): void
+    {
+        Log::error('statamic-lead-magnets: the '.$kind.' mail for ['.$grant->resource?->handle.'] was not sent. The template ['.$e->slug.'] still contains ['.mb_substr($e->snippet, 0, 200).'] after the variables were filled in. Delivery templates support plain {{ variable }} only, no {{ if }}.');
+
+        $this->note($grant, $kind.'_template_unresolved');
     }
 
     /** @return array<string, string> */

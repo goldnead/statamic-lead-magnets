@@ -205,6 +205,13 @@ email-templates slug for that resource's mails (for example a welcome text per
 freebie, with `{{ file_list }}` for the files). Empty uses
 `lead-magnets.mail.confirmation_template` / `delivery_template`.
 
+Delivery and confirmation templates support plain `{{ variable }}` placeholders only. No
+`{{ if }}`, no loops, no Antlers tags. A template that still contains a `{{ … }}` after the
+variables were filled in is not sent: the addon logs an error naming the resource, the template and
+the leftover, does not mark the grant delivered, and leaves `last_hold` on the grant as
+`delivery_template_unresolved` (or `confirmation_template_unresolved`). Fix the template, then
+re-send.
+
 ### From your own code
 
 ```php
