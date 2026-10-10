@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Http\Controllers\Web;
 use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Resource;
+use Goldnead\LeadMagnets\Support\RedirectTarget;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -51,7 +52,8 @@ class RequestController extends Controller
             return response()->json(['ok' => true, 'data' => ['state' => $state]]);
         }
 
-        if ($redirect = $request->input('_redirect')) {
+        // `_redirect` comes from the public form: only this site's own pages.
+        if ($redirect = RedirectTarget::accept($request->input('_redirect'), $request)) {
             return redirect()->to($redirect);
         }
 
