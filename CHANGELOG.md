@@ -7,6 +7,62 @@
   LeadHub the cell stays text. If the address now resolves to a different contact than the one the
   access was synced to, there is no link and the row says so.
 
+## 3.10.0 — 2026-10-17
+
+### Changed
+
+- Settings: the addon now declares `settingsNavParent()` (`[section, name]` of its own Control Panel navigation entry). With statamic-brand-context 1.16 or newer its settings show as the sub-item "Einstellungen" under that entry; addons without a navigation of their own share one "Addon-Suite" page under Settings. Older brand-context versions ignore the method and keep the previous layout.
+
+### Upgrading
+
+- No migration, no new config key.
+
+## 3.9.1 — 2026-10-11
+
+### A template with a leftover `{{ … }}` is no longer sent
+
+Only plain `{{ variable }}` placeholders are filled in. A template that kept an Antlers
+`{{ if }}` went to the relay as it was; Brevo silently dropped such a mail on 10.10.2026, and the
+grant was still marked delivered.
+
+- After the variables are filled in, a `{{ … }}` left in the subject or the body stops the send
+  (delivery mail and confirmation mail alike). Nothing goes to the relay and `delivered_at` stays
+  empty.
+- The error log names the resource handle, the template slug and the leftover snippet. The grant
+  carries `last_hold` = `delivery_template_unresolved` / `confirmation_template_unresolved`.
+- Values that happen to contain braces are not mistaken for a leftover. Templates without a leftover
+  render exactly as before.
+- README: delivery templates support plain variables only.
+
+## 3.9.0 — 2026-10-10
+
+### Return URL for the confirmation link
+
+`LeadMagnets::request()` accepts `return_url` in its meta: a URL signed by the application, on the
+requesting host. After the reader confirmed, the confirmation link (and the consent button) redirects
+there with a 303 instead of showing the addon's page. This is how another addon, such as
+statamic-funnels, picks the reader up again at its next step.
+
+- Not an open redirect: the value is never read from the public form, anything unsigned or on
+  another host is dropped with a log warning, and the signature and host are checked again when the
+  link is followed.
+- A lapsed confirmation or a revoked grant does not redirect.
+- A repeat request replaces the return URL; one without a return URL clears the old one.
+- New class `Support\ReturnUrl`. No migration: the URL is kept in the grant's `meta`.
+
+## 3.8.1 — 2026-10-10
+
+### Fixed: open redirect on the request form
+
+The request endpoint followed whatever the hidden `_redirect` field held, so a link or form on
+the real domain could send a reader to any other site after the opt-in (phishing under the
+brand). `_redirect` is now followed only when it is a path on this site (one leading `/`) or an
+absolute http(s) URL with this request's own scheme, host and port. Protocol-relative URLs
+(`//host`), backslash and whitespace tricks, `javascript:`/`data:` schemes, credentials in the URL
+and non-string values are refused; the reader then lands on the previous page as if no
+`_redirect` had been sent. Relative paths such as `/thanks` keep working. Sites that put a
+relative path without a leading slash (`thanks`) or another host in `_redirect` must change it.
+
 ## 3.8.0 — 2026-10-07
 
 ### One confirmation for the file and the mailing list

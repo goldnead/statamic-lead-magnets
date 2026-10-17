@@ -205,6 +205,13 @@ email-templates slug for that resource's mails (for example a welcome text per
 freebie, with `{{ file_list }}` for the files). Empty uses
 `lead-magnets.mail.confirmation_template` / `delivery_template`.
 
+Delivery and confirmation templates support plain `{{ variable }}` placeholders only. No
+`{{ if }}`, no loops, no Antlers tags. A template that still contains a `{{ … }}` after the
+variables were filled in is not sent: the addon logs an error naming the resource, the template and
+the leftover, does not mark the grant delivered, and leaves `last_hold` on the grant as
+`delivery_template_unresolved` (or `confirmation_template_unresolved`). Fix the template, then
+re-send.
+
 ### From your own code
 
 ```php
@@ -225,6 +232,34 @@ use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
 
 Entitlements::allows(LeadMagnetSubject::for('reader@example.com'), 'warm_up');
 ```
+
+### Sending the reader somewhere after the confirmation
+
+A caller that asks for a resource on someone's behalf (a funnel, a course, a checkout) can say where
+the reader goes once the address is confirmed. Hand over a **signed** URL as `return_url`:
+
+```php
+use Illuminate\Support\Facades\URL;
+
+$back = URL::signedRoute('my-flow.resume', ['step' => 'thanks']);
+
+LeadMagnets::request($resource, 'reader@example.com', ['return_url' => $back]);
+```
+
+Clicking the confirmation link (or pressing the button, for a resource that also subscribes a list)
+then redirects there with a `303` instead of showing the addon's own page. The grant is activated and
+the delivery mail is sent first, exactly as without a return URL.
+
+It cannot become an open redirect, because the address is only ever taken from PHP code, never from
+the public form, and it is only kept when it is
+
+- signed with your application key (`URL::signedRoute()` / `URL::temporarySignedRoute()`), and
+- on the host that received the request.
+
+Anything else is dropped (and logged); the reader sees the normal confirmation page. The check runs
+again when the link is followed. A lapsed confirmation or a revoked grant never redirects. A repeat
+request replaces the return URL, a request without one clears it. Use `temporarySignedRoute()` if
+you want the return link to expire: it then has to outlive `confirm_expires_at` (72 hours by default).
 
 ### Listening to events
 

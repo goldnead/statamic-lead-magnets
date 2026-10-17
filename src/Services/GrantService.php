@@ -13,8 +13,10 @@ use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\ConfirmationToken;
 use Goldnead\LeadMagnets\Support\EmailNormalizer;
 use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
+use Goldnead\LeadMagnets\Support\ReturnUrl;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The request and delivery flow. Access state belongs to entitlements.
@@ -68,7 +70,23 @@ class GrantService
 
         $grant->requested_at = Carbon::now();
         // The disclosure copy is this addon's to write, never a caller's.
-        $grant->meta = array_merge($grant->meta ?? [], array_diff_key($meta, ['list_consent' => true]));
+        //
+        // The return URL is decided by this request alone: a repeat request
+        // that names none must not inherit the one of an earlier request, or a
+        // reader who asks again through the plain form would be sent back into
+        // somebody else's flow. It is only kept when it is a link this
+        // application signed for this host (see ReturnUrl).
+        $returnUrl = ReturnUrl::accept($meta[ReturnUrl::META] ?? null);
+
+        if (isset($meta[ReturnUrl::META]) && $returnUrl === null) {
+            Log::warning('statamic-lead-magnets: the return URL for ['.$resource->handle.'] was not a signed link on this host and was dropped.');
+        }
+
+        $grant->meta = array_merge(
+            array_diff_key($grant->meta ?? [], [ReturnUrl::META => true]),
+            array_diff_key($meta, ['list_consent' => true, ReturnUrl::META => true]),
+            $returnUrl === null ? [] : [ReturnUrl::META => $returnUrl],
+        );
         $grant->save();
         $grant->setRelation('resource', $resource);
 
