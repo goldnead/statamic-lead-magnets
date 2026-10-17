@@ -36,6 +36,8 @@
     "Revoke access": "Zugang entziehen",
     "Reinstate access": "Zugang wiederherstellen",
     "Send the link again": "Link erneut senden",
+    "LeadHub contact unclear": "LeadHub-Kontakt unklar",
+    "This address now belongs to a different LeadHub contact than the one this access was created for.": "Diese Adresse gehört jetzt zu einem anderen LeadHub-Kontakt als dem, für den dieser Zugang angelegt wurde.",
     "Revoke this access? Links already sent stop working immediately.": "Diesen Zugang entziehen? Bereits verschickte Links funktionieren sofort nicht mehr.",
     "active": "aktiv",
     "pending": "offen",

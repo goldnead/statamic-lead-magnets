@@ -5,6 +5,7 @@ namespace Goldnead\LeadMagnets\Tests\Fixtures;
 use Goldnead\LeadMagnets\Integrations\ActivityBridge;
 use Goldnead\LeadMagnets\Integrations\EmailTemplatesBridge;
 use Goldnead\LeadMagnets\Integrations\LeadhubBridge;
+use Goldnead\LeadMagnets\Integrations\LeadhubLinks;
 use Goldnead\LeadMagnets\Integrations\MarketingBridge;
 use Goldnead\LeadMagnets\Integrations\SuppressionBridge;
 use Illuminate\Support\Facades\Facade;
@@ -61,6 +62,32 @@ class StubbedLeadhubBridge extends LeadhubBridge
     protected function facade(): string
     {
         return FakeLeadHubFacade::class;
+    }
+}
+
+class StubbedLeadhubLinks extends LeadhubLinks
+{
+    public bool $mayView = true;
+
+    public bool $throws = false;
+
+    protected function facade(): string
+    {
+        return FakeLeadHubFacade::class;
+    }
+
+    protected function mayView(): bool
+    {
+        return $this->mayView;
+    }
+
+    protected function contactUrl(string $uuid): string
+    {
+        if ($this->throws) {
+            throw new \RuntimeException('leadhub is having a bad day');
+        }
+
+        return '/cp/leadhub/contacts/'.$uuid;
     }
 }
 

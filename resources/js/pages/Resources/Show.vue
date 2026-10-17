@@ -18,7 +18,7 @@ import { hasOwnField, toForm, toPayload, visibleFieldKeys } from './form';
 
 const props = defineProps([
     'resource',      // { id, handle, title, description, delivery_type, link_url, requires_confirmation, published, link_ttl, max_downloads, grant_ttl_days, tags, marketing_list }
-    'grants',        // [{ id, email, state, requested_at, confirmed_at, delivered_at, downloads, lapsed, revoke_url, reinstate_url, resend_url }]
+    'grants',        // [{ id, email, contact_link { state, url } | null, state, requested_at, confirmed_at, delivered_at, downloads, lapsed, revoke_url, reinstate_url, resend_url }]
     'columns',       // Array<Column>
     'states',        // list of the six entitlement states
     'filters',       // { state, search }
@@ -158,7 +158,19 @@ function formatDate(value) {
             @refreshing="reloadPage"
         >
             <template #cell-email="{ row }">
-                <span class="font-medium">{{ row.email }}</span>
+                <a
+                    v-if="row.contact_link?.url"
+                    :href="row.contact_link.url"
+                    class="font-medium underline-offset-2 hover:underline"
+                >{{ row.email }}</a>
+                <span v-else class="font-medium">
+                    {{ row.email }}
+                    <span
+                        v-if="row.contact_link?.state === 'ambiguous'"
+                        class="ml-1 text-xs text-gray-500 dark:text-gray-400"
+                        :title="__('This address now belongs to a different LeadHub contact than the one this access was created for.')"
+                    >({{ __('LeadHub contact unclear') }})</span>
+                </span>
             </template>
 
             <template #cell-state="{ row }">

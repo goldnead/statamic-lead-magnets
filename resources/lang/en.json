@@ -36,6 +36,8 @@
     "Revoke access": "Revoke access",
     "Reinstate access": "Reinstate access",
     "Send the link again": "Send the link again",
+    "LeadHub contact unclear": "LeadHub contact unclear",
+    "This address now belongs to a different LeadHub contact than the one this access was created for.": "This address now belongs to a different LeadHub contact than the one this access was created for.",
     "Revoke this access? Links already sent stop working immediately.": "Revoke this access? Links already sent stop working immediately.",
     "active": "active",
     "pending": "pending",

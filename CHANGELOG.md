@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The address in the resource's *Access* table links to the LeadHub contact when
+  goldnead/statamic-leadhub is installed and the user may view contacts. No hard dependency; without
+  LeadHub the cell stays text. If the address now resolves to a different contact than the one the
+  access was synced to, there is no link and the row says so.
+
 ## 3.8.0 — 2026-10-07
 
 ### One confirmation for the file and the mailing list

@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Http\Controllers\Cp;
 
 use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\Entitlements\Models\Entitlement;
+use Goldnead\LeadMagnets\Integrations\LeadhubLinks;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
@@ -148,7 +149,14 @@ class ResourceController extends Controller
             ->paginate(50)
             ->withQueryString();
 
+        // Optional LeadHub link per address: empty map without LeadHub or
+        // without permission, then the cell stays plain text.
+        $contactLinks = app(LeadhubLinks::class)->forGrants(
+            collect($page->items())->map(fn (Grant $grant) => ['email' => $grant->email, 'contact_id' => $grant->contact_id])
+        );
+
         $grants = collect($page->items())->map(fn (Grant $grant) => [
+            'contact_link' => $contactLinks[$grant->email] ?? null,
             'id' => $grant->id,
             'email' => $grant->email,
             'state' => $grant->stateValue(),
