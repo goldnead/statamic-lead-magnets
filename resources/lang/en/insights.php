@@ -23,4 +23,6 @@ return [
 
     'metric_no_resource' => 'No resource',
 
+    'map_requests' => 'Requests',
+
 ];

@@ -272,6 +272,10 @@ Event::listen(ResourceConfirmed::class, function (ResourceConfirmed $event) {
 });
 ```
 
+### Funnels map
+
+With `goldnead/statamic-brand-context` 1.17 or newer, every lead magnet is offered to the funnels map as the object type `lead_magnet`, keyed by the resource handle. The map gets the title, a link to the resource in the Control Panel, the published switch and, as its one number, the requests over the period. Requests are counted the same way as the insights figure "Requested", narrowed to that resource. The provider is `Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects`.
+
 ---
 
 ## Routes

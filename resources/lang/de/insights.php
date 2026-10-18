@@ -24,4 +24,6 @@ return [
 
     'metric_no_resource' => 'Ohne Ressource',
 
+    'map_requests' => 'Anfragen',
+
 ];
