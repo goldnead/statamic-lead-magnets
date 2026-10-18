@@ -5,7 +5,7 @@
 --}}
 {!! __('lead-magnets::mail.delivery_greeting') !!}
 
-{!! __('lead-magnets::mail.delivery_body', ['title' => $resource?->title ?? '']) !!}
+{!! __('lead-magnets::mail.delivery_body'.($resource?->isAccess() ? '_access' : ''), ['title' => $resource?->title ?? '']) !!}
 
 @if (! empty($groups))
 @foreach ($groups as $group)
@@ -22,4 +22,4 @@
 {!! $downloadUrl !!}
 @endif
 
-{!! __('lead-magnets::mail.delivery_expiry') !!}
+{!! __('lead-magnets::mail.delivery_expiry'.($resource?->isAccess() ? '_access' : '')) !!}

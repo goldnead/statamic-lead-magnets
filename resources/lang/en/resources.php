@@ -7,6 +7,7 @@ return [
     'delivery_type' => 'Delivery',
     'delivery_file' => 'File',
     'delivery_link' => 'Link',
+    'delivery_access' => 'Access',
     'file_path' => 'File path',
     'file_disk' => 'Disk',
     'file' => 'File',

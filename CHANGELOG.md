@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.12.0 — 2026-10-19
+
+### Added
+
+- Delivery method *Access*: a confirmed reader is granted a product (a course, material) on their
+  account instead of getting a file. The host binds `Contracts\AccessSubjectResolver` to find or create
+  the account and to give a sign-in link; the addon creates no users. Fields: product slug,
+  landing path. New placeholder `{{ access_url }}` in the delivery template.
+- *Mail series* on a resource: the handle of an automation whose first mail replaces the delivery
+  mail for a first-time reader. Falls back to the delivery mail without the automations addon, with
+  the automation off, or for a reader who had the series (optional bridge, reads automations'
+  repository and run history). The series itself starts from its own trigger, for example
+  `entitlements.granted` on the product.
+- Event `DeliveryVariables`: add placeholders to the confirmation and delivery mails from a
+  listener, no subclass of `DeliveryService` needed.
+- A request notice: `notifications.webhook_url` posts every request to a Discord-compatible webhook.
+- A signed download link of an access resource answers 404.
+
+### Upgrading
+
+- One migration (`access_product`, `access_path`, `delivery_series` on `lead_magnet_resources`, all
+  nullable). Existing resources do not change.
+- Optional: `notifications.*` and `entitlements.access_source` in the config.
+
 ## 3.11.0 — 2026-10-18
 
 ### Added

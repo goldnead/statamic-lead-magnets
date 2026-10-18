@@ -8,7 +8,7 @@
     "Delivery": "Auslieferung",
     "Delivery method": "Art der Auslieferung",
     "Delivery and limits": "Auslieferung und Grenzen",
-    "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way.": "Eine Datei wird aus dem eigenen Container dieses Addons ausgeliefert. Ein Link leitet den Besucher weiter und wird genauso gezählt und protokolliert.",
+    "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way. Access opens a product for the reader's account.": "Eine Datei wird aus dem eigenen Container dieses Addons ausgeliefert. Ein Link leitet den Besucher weiter und wird genauso gezählt und protokolliert. Zugang öffnet ein Produkt für das Konto der Person.",
     "Consent and follow-up": "Einwilligung und Anschluss",
     "Access": "Zugänge",
     "Title": "Titel",
@@ -62,5 +62,12 @@
     "Confirmation template": "Vorlage Bestätigung",
     "Delivery template": "Vorlage Lieferung",
     "Slug of an Email Templates entry for this resource. Leave empty for the configured default.": "Slug eines Eintrags in Email Templates für diese Ressource. Leer heißt: die eingestellte Vorlage.",
-    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug eines Eintrags in Email Templates für diese Ressource. {{ file_list }} setzt die Dateiliste ein. Leer heißt: die eingestellte Vorlage."
+    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug eines Eintrags in Email Templates für diese Ressource. {{ file_list }} setzt die Dateiliste ein. Leer heißt: die eingestellte Vorlage.",
+    "Access to a product": "Zugang zu einem Produkt",
+    "Product slug": "Produkt-Slug",
+    "Slug of the course or material the confirmed reader gets access to.": "Slug des Kurses oder Materials, zu dem die bestätigte Person Zugang bekommt.",
+    "Landing path": "Zielpfad",
+    "Where the sign-in link in the delivery mail leads, e.g. /account/courses/my-course. Starts with a slash.": "Wohin der Anmelde-Link in der Liefermail führt, z. B. /account/courses/mein-kurs. Beginnt mit einem Schrägstrich.",
+    "Mail series": "Mailserie",
+    "Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out.": "Handle einer Automation. Beim ersten Mal ersetzt ihre erste Mail die Liefermail. Braucht das Automations-Addon; ohne es oder bei ausgeschalteter Automation geht die Liefermail raus."
 }

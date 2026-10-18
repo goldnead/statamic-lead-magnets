@@ -59,6 +59,7 @@ class ResourceController extends Controller
                     // it will actually reach for settles the question on screen.
                     'delivery_source' => match (true) {
                         $resource->isLink() => $resource->link_url,
+                        $resource->isAccess() => $resource->access_product,
                         $resource->hasMultipleFiles() => __('lead-magnets::resources.files_count', ['count' => count($resource->fileList())]),
                         default => $resource->file_path === null ? null : basename($resource->file_path),
                     },
@@ -184,6 +185,8 @@ class ResourceController extends Controller
                 'description' => $record->description,
                 'delivery_type' => $record->delivery_type,
                 'link_url' => $record->link_url,
+                'access_product' => $record->access_product,
+                'access_path' => $record->access_path,
                 'requires_confirmation' => $record->requires_confirmation,
                 'published' => $record->published,
                 'link_ttl' => $record->link_ttl,
@@ -195,6 +198,7 @@ class ResourceController extends Controller
                 'list_consent_text' => $record->list_consent_text,
                 'confirmation_template' => $record->confirmation_template,
                 'delivery_template' => $record->delivery_template,
+                'delivery_series' => $record->delivery_series,
             ],
             // The detail page is the form — the same shape the create page
             // gets. Without the permission to change anything it is handed no
@@ -434,7 +438,7 @@ class ResourceController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'handle' => [$existing ? 'prohibited' : 'nullable', 'string', 'max:191', 'regex:/^[a-z0-9_\-]+$/'],
             'description' => ['nullable', 'string'],
-            'delivery_type' => ['required', 'in:file,link'],
+            'delivery_type' => ['required', 'in:file,link,access'],
             // The picker sends an asset id. It is required only when the record
             // has no file yet: an existing one keeps the file it has when the
             // selection comes back empty, so a title can be edited without
@@ -507,6 +511,11 @@ class ResourceController extends Controller
             'files.*.label' => ['nullable', 'string', 'max:191'],
             'files.*.group' => ['nullable', 'string', 'max:191'],
             'link_url' => ['nullable', 'url', 'max:2000', 'required_if:delivery_type,link'],
+            // Access: the product the confirmed reader is granted, the path the
+            // sign-in link lands on, and the series that may replace the mail.
+            'access_product' => ['nullable', 'string', 'max:191', 'required_if:delivery_type,access'],
+            'access_path' => ['nullable', 'string', 'max:255', 'regex:/^\/(?!\/)[^\s\\\\]*$/'],
+            'delivery_series' => ['nullable', 'string', 'max:191'],
             'requires_confirmation' => [
                 'nullable',
                 'boolean',
@@ -570,6 +579,8 @@ class ResourceController extends Controller
             'file_disk' => $keep ? $existing->file_disk : ($files === [] ? null : $this->assets->diskHandle()),
             'files' => $keep ? $existing->files : ($files === [] ? null : $files),
             'link_url' => $data['delivery_type'] === Resource::TYPE_LINK ? ($data['link_url'] ?? null) : null,
+            'access_product' => $data['delivery_type'] === Resource::TYPE_ACCESS ? $this->trimmedOrNull($data['access_product'] ?? null) : null,
+            'access_path' => $data['delivery_type'] === Resource::TYPE_ACCESS ? $this->trimmedOrNull($data['access_path'] ?? null) : null,
             'requires_confirmation' => (bool) ($data['requires_confirmation'] ?? true),
             'published' => (bool) ($data['published'] ?? true),
             'link_ttl' => $data['link_ttl'] ?? null,
@@ -581,6 +592,7 @@ class ResourceController extends Controller
             'list_consent_text' => $this->trimmedOrNull($data['list_consent_text'] ?? null),
             'confirmation_template' => $this->trimmedOrNull($data['confirmation_template'] ?? null),
             'delivery_template' => $this->trimmedOrNull($data['delivery_template'] ?? null),
+            'delivery_series' => $this->trimmedOrNull($data['delivery_series'] ?? null),
         ];
     }
 

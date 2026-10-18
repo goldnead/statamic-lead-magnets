@@ -39,6 +39,9 @@ return [
     'entitlements' => [
         'source' => 'lead_magnet',
         'subject_type' => 'lead-magnet-contact',
+        // The source written on the product access an `access` resource grants
+        // to an account, apart from the grant's own entitlement above.
+        'access_source' => 'lead_magnet_access',
     ],
 
     /*
@@ -129,6 +132,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Notice on every request
+    |--------------------------------------------------------------------------
+    |
+    | A chat webhook (Discord, or anything that takes {"content": "…"}) that
+    | hears about each request. Empty means no notice. The message may use
+    | :handle, :email and :time.
+    |
+    */
+
+    'notifications' => [
+        'webhook_url' => null,
+        'message' => 'New request for `:handle`: :email, :time',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Optional sibling addons
     |--------------------------------------------------------------------------
     |
@@ -144,6 +163,7 @@ return [
         'email_templates' => true,
         'suppression' => true,
         'activity' => true,
+        'automations' => true,
 
         // Offers four figures — requested, confirmed, downloads and the
         // confirmation rate — to goldnead/statamic-insights. Off means they are
