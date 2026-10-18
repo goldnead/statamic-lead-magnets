@@ -267,23 +267,52 @@ class DeliveryService
             return false;
         }
 
-        $seriesTakesOver = ($series = $resource->seriesHandle()) !== null
-            && app(AutomationsBridge::class)->takesOver($series, $grant->email);
+        $source = (string) config('lead-magnets.entitlements.access_source', 'lead_magnet_access');
+        // A reader who asks again after the access lapsed gets a new period, the
+        // way the grant itself does (`attempt`): the lapsed row stays a true
+        // record, and a second row is what entitlements expects of repeat access.
+        $sourceRef = $grant->attempt > 1 ? $resource->handle.':'.$grant->attempt : (string) $resource->handle;
 
         try {
             $resolver = app(AccessSubjectResolver::class);
             $subject = $resolver->subjectFor($grant->email, $grant);
 
-            Entitlements::grant(
+            // Whether this period's access row is new. Only a new row fires
+            // `entitlements.granted`, which is what starts a series, so a series
+            // can only take over when this call writes it. An existing row means
+            // the reader has been through here before: the delivery mail is
+            // the safe answer, and a series that "takes over" without a trigger
+            // would leave them with no mail at all.
+            $isNew = ! Entitlements::forSubject($subject)
+                ->where('product_slug', (string) $resource->access_product)
+                ->where('source', $source)
+                ->where('source_ref', $sourceRef)
+                ->exists();
+
+            $seriesTakesOver = $isNew
+                && ($series = $resource->seriesHandle()) !== null
+                && app(AutomationsBridge::class)->takesOver($series, $grant->email);
+
+            $access = Entitlements::grant(
                 $subject,
                 (string) $resource->access_product,
-                (string) config('lead-magnets.entitlements.access_source', 'lead_magnet_access'),
-                (string) $resource->handle,
+                $source,
+                $sourceRef,
                 null,
                 ($days = $resource->grantTtlDays()) === null ? null : CarbonImmutable::now('UTC')->addDays($days),
                 null,
                 ['lead_magnet_grant_id' => $grant->id, 'lead_magnet_resource' => $resource->handle],
             );
+
+            // A revoked access stays revoked: somebody withdrew it on purpose,
+            // and a form is not the place to overturn that. A mail with a sign-in
+            // link would promise what the account does not have.
+            if (! $access->state()->grantsAccess()) {
+                Log::warning('statamic-lead-magnets: the access to ['.$resource->access_product.'] for ['.$resource->handle.'] does not stand ('.$access->state()->value.'); no mail was sent.');
+                $this->note($grant, 'access_not_open');
+
+                return false;
+            }
 
             $accessUrl = $seriesTakesOver ? null : $resolver->accessUrl($subject, $resource, $grant);
         } catch (\Throwable $e) {

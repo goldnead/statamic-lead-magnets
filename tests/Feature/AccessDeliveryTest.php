@@ -1,5 +1,6 @@
 <?php
 
+use Goldnead\Entitlements\EntitlementManager;
 use Goldnead\Entitlements\Models\Entitlement;
 use Goldnead\Entitlements\Support\SubjectReference;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
@@ -228,4 +229,55 @@ it('lets a listener add a placeholder to both mails', function (): void {
     }
 
     expect($all)->toContain('EXTRA-confirmation')->toContain('EXTRA-delivery');
+});
+
+it('mails the sign-in link, not nothing, when the access row exists already and the series never ran', function (): void {
+    // The series was switched on after this reader got in: no event will fire
+    // for the existing row, so nothing would start the series.
+    makeAccessResource();
+    requestAndConfirm('minikurs', 'reader@example.com');
+    expect(sentMailCount())->toBe(2);
+
+    Resource::query()->update(['delivery_series' => 'minikurs-serie']);
+    app(LeadMagnetsManager::class)->request(Resource::query()->firstOrFail(), 'reader@example.com');
+
+    expect(sentMailCount())->toBe(3)
+        ->and(Grant::query()->sole()->meta['delivery'])->toBe('mail')
+        ->and(Entitlement::query()->where('product_slug', 'minikurs-kurs')->count())->toBe(1);
+});
+
+it('does not reopen an access somebody revoked, and says so instead of mailing a dead link', function (): void {
+    makeAccessResource();
+    requestAndConfirm('minikurs', 'reader@example.com');
+
+    $access = Entitlement::query()->where('product_slug', 'minikurs-kurs')->sole();
+    app(EntitlementManager::class)->revoke($access, 'Moderation');
+    $before = sentMailCount();
+
+    app(LeadMagnetsManager::class)->request(Resource::query()->firstOrFail(), 'reader@example.com');
+
+    expect(sentMailCount())->toBe($before)
+        ->and(Grant::query()->sole()->meta['last_hold'])->toBe('access_not_open');
+});
+
+it('opens a new access period when a lapsed one is asked for again', function (): void {
+    makeAccessResource(['grant_ttl_days' => 7]);
+    requestAndConfirm('minikurs', 'reader@example.com');
+
+    // Both the grant and the product access ran out.
+    Entitlement::query()->update(['expires_at' => now()->subDay()]);
+    $before = sentMailCount();
+
+    $manager = app(LeadMagnetsManager::class);
+    $manager->request(Resource::query()->firstOrFail(), 'reader@example.com');
+    $manager->confirm(tokenFromLastConfirmationMail());
+
+    $rows = Entitlement::query()->where('product_slug', 'minikurs-kurs')->orderBy('id')->get();
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0]->source_ref)->toBe('minikurs')
+        ->and($rows[1]->source_ref)->toBe('minikurs:2')
+        ->and($rows[1]->state()->grantsAccess())->toBeTrue()
+        // A confirmation and a delivery mail for the second period.
+        ->and(sentMailCount())->toBe($before + 2);
 });

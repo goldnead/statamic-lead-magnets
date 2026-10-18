@@ -9,10 +9,13 @@ use Illuminate\Foundation\Events\Dispatchable;
  * The placeholders a mail is about to be filled with.
  *
  * Fired for the confirmation mail (`kind` is `confirmation`) and the delivery
- * mail (`delivery`), after this addon has set its own. A listener adds or
- * replaces entries on `$variables`; they are then available to the template as
- * `{{ name }}`. Values are escaped like the others, so a link is meant to be an
- * `href` or plain text, not markup.
+ * mail (`delivery`), after this addon has set its basic values (`email`,
+ * `resource_title`, `resource_handle`, `resource_description`). A listener adds
+ * or replaces entries on `$variables`; they are then available to the template
+ * as `{{ name }}`. The links and lists this addon builds itself (`confirm_url`,
+ * `download_url`, `access_url`, `file_list`, `list_consent_text`) are added
+ * afterwards and cannot be replaced from here. Values are escaped like the
+ * others, so a link is meant to be an `href` or plain text, not markup.
  *
  * A key the template does not use is harmless, and a key a template uses that
  * nobody sets holds the mail back with an error in the log, as before.

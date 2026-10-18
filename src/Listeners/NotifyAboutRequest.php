@@ -38,9 +38,13 @@ class NotifyAboutRequest
         ]);
 
         try {
-            Http::timeout(5)->post($url, ['content' => $message]);
+            // No mentions from outside: the address comes from an unconfirmed
+            // request, and whatever it contains is not a ping.
+            Http::timeout(5)->throw()->post($url, ['content' => $message, 'allowed_mentions' => ['parse' => []]]);
         } catch (\Throwable $e) {
-            Log::warning('statamic-lead-magnets: the request notice could not be posted: '.$e->getMessage());
+            // The class and the reason, never the message of a connection error:
+            // it carries the webhook URL, and a Discord URL is its own secret.
+            Log::warning('statamic-lead-magnets: the request notice could not be posted ('.$e::class.').');
         }
     }
 }
