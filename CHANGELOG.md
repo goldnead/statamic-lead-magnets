@@ -1,16 +1,13 @@
 # Changelog
 
-## Unreleased
+## 3.11.0 — 2026-10-18
+
+### Added
 
 - The address in the resource's *Access* table links to the LeadHub contact when
   goldnead/statamic-leadhub is installed and the user may view contacts. No hard dependency; without
   LeadHub the cell stays text. If the address now resolves to a different contact than the one the
   access was synced to, there is no link and the row says so.
-
-## 3.11.0 — 2026-10-18
-
-### Added
-
 - Funnels map: each lead magnet is offered to the map as the object type `lead_magnet`. The card shows the title, a link to the resource in the Control Panel, whether the resource is published, its delivery (file or link), and the number of requests over the period. The id is the resource handle. Needs statamic-brand-context 1.17 or newer.
 
 ### Upgrading
