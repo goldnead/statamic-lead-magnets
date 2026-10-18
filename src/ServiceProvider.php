@@ -2,6 +2,7 @@
 
 namespace Goldnead\LeadMagnets;
 
+use Goldnead\BrandContext\Map\MapObjectRegistry;
 use Goldnead\BrandContext\Settings\SettingsRegistry;
 use Goldnead\LeadMagnets\Console\MigrateGrantsCommand;
 use Goldnead\LeadMagnets\Console\SweepGrantsCommand;
@@ -10,6 +11,7 @@ use Goldnead\LeadMagnets\Integrations\Insights\Confirmed;
 use Goldnead\LeadMagnets\Integrations\Insights\ConfirmRate;
 use Goldnead\LeadMagnets\Integrations\Insights\Downloads;
 use Goldnead\LeadMagnets\Integrations\Insights\Requested;
+use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
 use Goldnead\LeadMagnets\Integrations\SiblingBridges;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Goldnead\LeadMagnets\Sending\BrandSenderIdentity;
@@ -177,6 +179,10 @@ class ServiceProvider extends AddonServiceProvider
         // angemeldet wuerden die Einstellungen auf manchen Installationen
         // greifen und auf anderen nicht.
         app(SettingsRegistry::class)->register(Settings::class);
+
+        // The funnels map asks for this addon's lead magnets as map objects.
+        // Plain call, no guard: brand-context is a hard requirement.
+        $this->app->make(MapObjectRegistry::class)->register(LeadMagnetMapObjects::class);
 
         $this->registerSiblingBridges();
         $this->registerInsightsMetrics();
