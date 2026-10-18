@@ -53,6 +53,10 @@ class DownloadController extends Controller
 
         abort_if($resource === null, 404);
 
+        // An access resource opens a product for an account; it has nothing to
+        // serve, and a signed link that names one is a stray.
+        abort_if($resource->isAccess(), 404);
+
         $record->setRelation('resource', $resource);
 
         // A resource with a list of files. The plain link is its overview

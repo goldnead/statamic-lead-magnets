@@ -7,6 +7,14 @@ return [
     'confirmation_cta' => 'Confirm and get the download',
     'confirmation_ignore' => 'If this was not you, ignore this mail. Nothing will be sent.',
 
+    'confirmation_body_access' => 'You asked for ":title". Confirm this address and your access is on its way.',
+    'confirmation_cta_access' => 'Confirm and get access',
+
+    'delivery_subject_access' => 'Your access: :title',
+    'delivery_body_access' => '":title" is open for you.',
+    'delivery_cta_access' => 'Open it',
+    'delivery_expiry_access' => 'The link is personal. Ask again if it stops working.',
+
     'delivery_subject' => 'Your download: :title',
     'delivery_greeting' => 'Hello,',
     'delivery_body' => 'Here is ":title", as requested.',

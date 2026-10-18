@@ -31,7 +31,7 @@ class DeliveryMail extends Mailable
         $resource = $this->grant->resource;
 
         $subject = $this->renderedSubject
-            ?: __('lead-magnets::mail.delivery_subject', ['title' => $resource->title]);
+            ?: __('lead-magnets::mail.delivery_subject'.($resource->isAccess() ? '_access' : ''), ['title' => $resource->title]);
 
         $mail = $this->subject($subject);
 

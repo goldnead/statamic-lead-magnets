@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $file_disk
  * @property array<int, array{key: string, path: string, label: string|null, group: string|null}>|null $files
  * @property string|null $link_url
+ * @property string|null $access_product
+ * @property string|null $access_path
  * @property bool $requires_confirmation
  * @property bool $published
  * @property int|null $link_ttl
@@ -30,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $list_consent_text
  * @property string|null $confirmation_template
  * @property string|null $delivery_template
+ * @property string|null $delivery_series
  */
 class Resource extends Model
 {
@@ -38,6 +41,9 @@ class Resource extends Model
     public const TYPE_FILE = 'file';
 
     public const TYPE_LINK = 'link';
+
+    /** Opens a product (a course, material) for an account instead of serving a file. */
+    public const TYPE_ACCESS = 'access';
 
     protected $table = 'lead_magnet_resources';
 
@@ -112,7 +118,7 @@ class Resource extends Model
      */
     public function fileList(): array
     {
-        if ($this->isLink()) {
+        if ($this->isLink() || $this->isAccess()) {
             return [];
         }
 
@@ -198,6 +204,19 @@ class Resource extends Model
     public function isLink(): bool
     {
         return $this->delivery_type === self::TYPE_LINK;
+    }
+
+    public function isAccess(): bool
+    {
+        return $this->delivery_type === self::TYPE_ACCESS;
+    }
+
+    /** The mail series (automation handle) that replaces the delivery mail, if one is set. */
+    public function seriesHandle(): ?string
+    {
+        $handle = trim((string) $this->delivery_series);
+
+        return $handle === '' ? null : $handle;
     }
 
     public function disk(): string

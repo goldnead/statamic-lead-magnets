@@ -7,6 +7,7 @@ return [
     'delivery_type' => 'Auslieferung',
     'delivery_file' => 'Datei',
     'delivery_link' => 'Link',
+    'delivery_access' => 'Zugang',
     'file_path' => 'Dateipfad',
     'file_disk' => 'Speicherort',
     'file' => 'Datei',

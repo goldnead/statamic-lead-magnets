@@ -8,7 +8,7 @@
     "Delivery": "Delivery",
     "Delivery method": "Delivery method",
     "Delivery and limits": "Delivery and limits",
-    "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way.": "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way.",
+    "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way. Access opens a product for the reader's account.": "A file is streamed from the addon's own container. A link forwards the visitor, counted and audited the same way. Access opens a product for the reader's account.",
     "Consent and follow-up": "Consent and follow-up",
     "Access": "Access",
     "Title": "Title",
@@ -62,5 +62,12 @@
     "Confirmation template": "Confirmation template",
     "Delivery template": "Delivery template",
     "Slug of an Email Templates entry for this resource. Leave empty for the configured default.": "Slug of an Email Templates entry for this resource. Leave empty for the configured default.",
-    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default."
+    "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.": "Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.",
+    "Access to a product": "Access to a product",
+    "Product slug": "Product slug",
+    "Slug of the course or material the confirmed reader gets access to.": "Slug of the course or material the confirmed reader gets access to.",
+    "Landing path": "Landing path",
+    "Where the sign-in link in the delivery mail leads, e.g. /account/courses/my-course. Starts with a slash.": "Where the sign-in link in the delivery mail leads, e.g. /account/courses/my-course. Starts with a slash.",
+    "Mail series": "Mail series",
+    "Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out.": "Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out."
 }

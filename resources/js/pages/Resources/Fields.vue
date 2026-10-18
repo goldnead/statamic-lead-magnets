@@ -34,10 +34,13 @@ const props = defineProps({
 defineEmits(['update:fileValues']);
 
 const isFile = computed(() => props.form.delivery_type === 'file');
+const isLink = computed(() => props.form.delivery_type === 'link');
+const isAccess = computed(() => props.form.delivery_type === 'access');
 
 const deliveryOptions = computed(() => [
     { value: 'file', label: __('File') },
     { value: 'link', label: __('Link') },
+    { value: 'access', label: __('Access to a product') },
 ]);
 
 // Die Fehler der Dateiliste: die Liste selbst, die alte Einzel-Datei und jede
@@ -89,7 +92,7 @@ const fileBlueprintFields = computed(
                         :label="__('Delivery method')"
                         :error="errors.delivery_type"
                         :read-only="readOnly"
-                        :instructions="__('A file is streamed from the addon\'s own container. A link forwards the visitor, counted and audited the same way.')"
+                        :instructions="__('A file is streamed from the addon\'s own container. A link forwards the visitor, counted and audited the same way. Access opens a product for the reader\'s account.')"
                     >
                         <Select v-model="form.delivery_type" :options="deliveryOptions" :disabled="readOnly" />
                     </Field>
@@ -131,13 +134,33 @@ const fileBlueprintFields = computed(
                     </div>
 
                     <Field
-                        v-if="!isFile"
+                        v-if="isLink"
                         :label="__('Link URL')"
                         :error="errors.link_url"
                         :read-only="readOnly"
                         :instructions="__('The visitor is forwarded here through the signed route, so a link is counted and audited exactly like a file.')"
                     >
                         <Input v-model="form.link_url" :read-only="readOnly" placeholder="https://…" />
+                    </Field>
+
+                    <Field
+                        v-if="isAccess"
+                        :label="__('Product slug')"
+                        :error="errors.access_product"
+                        :read-only="readOnly"
+                        :instructions="__('Slug of the course or material the confirmed reader gets access to.')"
+                    >
+                        <Input v-model="form.access_product" :read-only="readOnly" />
+                    </Field>
+
+                    <Field
+                        v-if="isAccess"
+                        :label="__('Landing path')"
+                        :error="errors.access_path"
+                        :read-only="readOnly"
+                        :instructions="__('Where the sign-in link in the delivery mail leads, e.g. /account/courses/my-course. Starts with a slash.')"
+                    >
+                        <Input v-model="form.access_path" :read-only="readOnly" placeholder="/" />
                     </Field>
 
                     <Field
@@ -256,6 +279,16 @@ const fileBlueprintFields = computed(
                         :instructions="__('Slug of an Email Templates entry for this resource. Use {{ file_list }} for a list of files. Leave empty for the configured default.')"
                     >
                         <Input v-model="form.delivery_template" :read-only="readOnly" />
+                    </Field>
+
+                    <Field
+                        v-if="isAccess"
+                        :label="__('Mail series')"
+                        :error="errors.delivery_series"
+                        :read-only="readOnly"
+                        :instructions="__('Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out.')"
+                    >
+                        <Input v-model="form.delivery_series" :read-only="readOnly" />
                     </Field>
                 </div>
             </Card>

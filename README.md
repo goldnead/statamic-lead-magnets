@@ -25,9 +25,10 @@ Statamic 6 only. Laravel 12.40+ / 13.
 
 ## What it does not do
 
-Account-based access instead of a download (that needs identity decisions this
-package does not make), follow-up sequences (they belong in
-`goldnead/statamic-marketing`), segments, and analytics conversion events.
+Creating accounts (an `access` resource asks the host to, see below), follow-up
+sequences (they belong in `goldnead/statamic-marketing` or
+`goldnead/statamic-automations`; this addon only lets one replace the delivery
+mail), segments, and analytics conversion events.
 
 ---
 
@@ -211,6 +212,54 @@ variables were filled in is not sent: the addon logs an error naming the resourc
 the leftover, does not mark the grant delivered, and leaves `last_hold` on the grant as
 `delivery_template_unresolved` (or `confirmation_template_unresolved`). Fix the template, then
 re-send.
+
+### Access instead of a file
+
+A resource with the delivery method *Access* opens a product (a course, a piece
+of material) for the reader's **account** instead of serving a file. It exists
+for freebies that live behind a login, such as a free mini course.
+
+- *Product slug* is what the confirmed reader is granted through entitlements.
+- *Landing path* is where the sign-in link in the delivery mail leads.
+- *Mail series* (optional) is the handle of an automation. For a first-time
+  reader whose series is switched on, the series' first mail replaces the
+  delivery mail, and no delivery mail goes out. A reader who had the series
+  before, an automation that is off, or an install without
+  `goldnead/statamic-automations` gets the delivery mail. Needs automations with
+  `Automations::seriesIsLive()` and `seriesHasRun()`.
+
+The addon never creates a user. The host binds
+`Goldnead\LeadMagnets\Contracts\AccessSubjectResolver`:
+
+```php
+use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
+
+$this->app->bind(AccessSubjectResolver::class, MyResolver::class);
+```
+
+`subjectFor($email, $grant)` finds or creates the account and returns a model or
+a `SubjectReference`; `accessUrl($subject, $resource, $grant)` returns a link that
+signs it in, or `null`. Both run after the confirmation, never before. Without a
+binding an access resource grants nothing and the grant says so in `last_hold`
+(`access_resolver_missing`).
+
+The product is granted with the source `entitlements.access_source`
+(`lead_magnet_access`), idempotently, so asking again adds no second row. The
+grant's own entitlement (the hash subject, source `lead_magnet`) is unchanged and
+keeps the delivery record. The delivery mail template gets `{{ access_url }}`.
+
+### More placeholders without a subclass
+
+Listen to `Goldnead\LeadMagnets\Events\DeliveryVariables` and add to
+`$event->variables` (`$event->kind` is `confirmation` or `delivery`). The key is
+then a `{{ name }}` in the template.
+
+### A notice on every request
+
+Set `notifications.webhook_url` to a Discord (or compatible) webhook and every
+request is posted as `{"content": …}`, worded by `notifications.message`
+(`:handle`, `:email`, `:time`). A dead endpoint is logged and never stops the
+request.
 
 ### From your own code
 
@@ -445,6 +494,9 @@ See `config/lead-magnets.php`. The settings worth knowing:
 | `entitlements.subject_type` | `lead-magnet-contact` | Morph type of a lead-magnet contact |
 | `assets.container` | `lead_magnets` | The asset container uploads go into |
 | `assets.disk` | `lead-magnets` | Its disk. Defined by the addon unless the host already defines one under that name — and it must not be web-accessible |
+| `entitlements.access_source` | `lead_magnet_access` | Source written on the product access an `access` resource grants |
+| `notifications.webhook_url` | `null` | Chat webhook told about each request |
+| `notifications.message` | see file | Wording of that notice |
 | `integrations.*` | `true` | Turn an installed sibling's bridge off |
 
 Most of these can be overridden per resource in the Control Panel. The two

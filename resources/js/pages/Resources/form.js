@@ -16,6 +16,8 @@ export function toForm(resource) {
         description: resource?.description || '',
         delivery_type: resource?.delivery_type || 'file',
         link_url: resource?.link_url || '',
+        access_product: resource?.access_product || '',
+        access_path: resource?.access_path || '',
         requires_confirmation: resource ? !! resource.requires_confirmation : true,
         published: resource ? !! resource.published : true,
         link_ttl: resource?.link_ttl ?? '',
@@ -27,6 +29,7 @@ export function toForm(resource) {
         list_consent_text: resource?.list_consent_text || '',
         confirmation_template: resource?.confirmation_template || '',
         delivery_template: resource?.delivery_template || '',
+        delivery_series: resource?.delivery_series || '',
     };
 }
 
@@ -70,7 +73,9 @@ export function toPayload(form, fileValues, { creating = false } = {}) {
         description: form.description || null,
         delivery_type: form.delivery_type,
         groups: isFile ? fileGroups(fileValues) : null,
-        link_url: isFile ? null : (form.link_url || null),
+        link_url: form.delivery_type === 'link' ? (form.link_url || null) : null,
+        access_product: form.delivery_type === 'access' ? (form.access_product || null) : null,
+        access_path: form.delivery_type === 'access' ? (form.access_path || null) : null,
         requires_confirmation: form.requires_confirmation,
         published: form.published,
         link_ttl: number(form.link_ttl),
@@ -82,6 +87,7 @@ export function toPayload(form, fileValues, { creating = false } = {}) {
         list_consent_text: form.list_consent_text || null,
         confirmation_template: form.confirmation_template || null,
         delivery_template: form.delivery_template || null,
+        delivery_series: form.delivery_series || null,
     };
 }
 
@@ -98,13 +104,15 @@ export function visibleFieldKeys(form, { creating = false } = {}) {
     const keys = [
         'title', 'description', 'delivery_type', 'requires_confirmation', 'published',
         'link_ttl', 'max_downloads', 'grant_ttl_days', 'tags', 'marketing_list',
-        'list_via_confirmation', 'confirmation_template', 'delivery_template',
+        'list_via_confirmation', 'confirmation_template', 'delivery_template', 'delivery_series',
     ];
 
     if (form.list_via_confirmation) keys.push('list_consent_text');
 
     if (creating) keys.push('handle');
-    keys.push(...(form.delivery_type === 'file' ? ['groups', 'files', 'file_asset'] : ['link_url']));
+    keys.push(...(form.delivery_type === 'file'
+        ? ['groups', 'files', 'file_asset']
+        : (form.delivery_type === 'access' ? ['access_product', 'access_path'] : ['link_url'])));
 
     return keys;
 }

@@ -2,7 +2,12 @@
 
 namespace Goldnead\LeadMagnets\Services;
 
+use Carbon\CarbonImmutable;
+use Goldnead\Entitlements\Facades\Entitlements;
+use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
+use Goldnead\LeadMagnets\Events\DeliveryVariables;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
+use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\Integrations\EmailTemplatesBridge;
 use Goldnead\LeadMagnets\Integrations\SuppressionBridge;
 use Goldnead\LeadMagnets\Integrations\UnresolvedPlaceholders;
@@ -55,7 +60,7 @@ class DeliveryService
         try {
             $rendered = $this->templates->render(
                 (string) $grant->resource?->mailTemplate('confirmation'),
-                $this->variables($grant) + [
+                $this->resolveVariables($grant, 'confirmation') + [
                     'confirm_url' => $url,
                     // The disclosure for a resource that also subscribes a list,
                     // empty otherwise. The copy on the grant, which is what the
@@ -124,6 +129,10 @@ class DeliveryService
             return false;
         }
 
+        if ($grant->resource?->isAccess()) {
+            return $this->deliverAccess($grant);
+        }
+
         // For a resource with a list of files the one `download_url` is the
         // overview page, and `groups` carries every file with its own signed
         // link, so the mail is complete without the page. A single file keeps
@@ -136,7 +145,7 @@ class DeliveryService
         try {
             $rendered = $this->templates->render(
                 (string) $grant->resource?->mailTemplate('delivery'),
-                $this->variables($grant) + [
+                $this->resolveVariables($grant, 'delivery') + [
                     'download_url' => $url,
                     // Rendered by Blade, which escapes labels and group names; the
                     // bridge inserts it raw (see `EmailTemplatesBridge::RAW_VARIABLES`).
@@ -225,6 +234,128 @@ class DeliveryService
         Log::error('statamic-lead-magnets: the '.$kind.' mail for ['.$grant->resource?->handle.'] was not sent. The template ['.$e->slug.'] still contains ['.mb_substr($e->snippet, 0, 200).'] after the variables were filled in. Mail templates support plain {{ variable }} only, no {{ if }}.');
 
         $this->note($grant, $kind.'_template_unresolved');
+    }
+
+    /**
+     * Open the product behind an `access` resource for the confirmed reader.
+     *
+     * The order matters. The series is asked first, because granting the
+     * access is what starts it, and after that there is always a run. Then the
+     * host resolves the address to an account, and the grant is written on that
+     * account with entitlements (idempotent, so a second request or a resend
+     * adds nothing). Last comes the mail: the sign-in link, unless a series
+     * takes over for this first-time reader and its first mail replaces it.
+     *
+     * Every refusal leaves its reason on the grant instead of throwing, the
+     * way the other holds do.
+     */
+    protected function deliverAccess(Grant $grant): bool
+    {
+        $resource = $grant->resource;
+
+        if (trim((string) $resource->access_product) === '') {
+            Log::error('statamic-lead-magnets: the access resource ['.$resource->handle.'] names no product, so nothing was granted.');
+            $this->note($grant, 'access_product_missing');
+
+            return false;
+        }
+
+        if (! app()->bound(AccessSubjectResolver::class)) {
+            Log::error('statamic-lead-magnets: the access resource ['.$resource->handle.'] needs the host to bind '.AccessSubjectResolver::class.'. Nothing was granted.');
+            $this->note($grant, 'access_resolver_missing');
+
+            return false;
+        }
+
+        $seriesTakesOver = ($series = $resource->seriesHandle()) !== null
+            && app(AutomationsBridge::class)->takesOver($series, $grant->email);
+
+        try {
+            $resolver = app(AccessSubjectResolver::class);
+            $subject = $resolver->subjectFor($grant->email, $grant);
+
+            Entitlements::grant(
+                $subject,
+                (string) $resource->access_product,
+                (string) config('lead-magnets.entitlements.access_source', 'lead_magnet_access'),
+                (string) $resource->handle,
+                null,
+                ($days = $resource->grantTtlDays()) === null ? null : CarbonImmutable::now('UTC')->addDays($days),
+                null,
+                ['lead_magnet_grant_id' => $grant->id, 'lead_magnet_resource' => $resource->handle],
+            );
+
+            $accessUrl = $seriesTakesOver ? null : $resolver->accessUrl($subject, $resource, $grant);
+        } catch (\Throwable $e) {
+            Log::error('statamic-lead-magnets: access for ['.$resource->handle.'] could not be granted: '.$e->getMessage());
+            $this->note($grant, 'access_grant_failed');
+
+            return false;
+        }
+
+        if ($seriesTakesOver) {
+            $this->markDelivered($grant, 'series');
+
+            return true;
+        }
+
+        $url = $accessUrl ?? url($resource->access_path ?: '/');
+
+        try {
+            $rendered = $this->templates->render(
+                (string) $resource->mailTemplate('delivery'),
+                $this->resolveVariables($grant, 'delivery') + ['access_url' => $url, 'download_url' => $url],
+            );
+        } catch (UnresolvedPlaceholders $e) {
+            $this->holdForTemplate($grant, 'delivery', $e);
+
+            return false;
+        }
+
+        $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
+            $grant,
+            $url,
+            $rendered['html'] ?? null,
+            $rendered['subject'] ?? null,
+        ));
+
+        if (! $sent) {
+            $this->note($grant, 'delivery_sender_refused');
+
+            return false;
+        }
+
+        $this->markDelivered($grant, 'mail');
+
+        return true;
+    }
+
+    /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */
+    protected function markDelivered(Grant $grant, string $how): void
+    {
+        $grant->forceFill([
+            'delivered_at' => Carbon::now(),
+            'meta' => array_merge($grant->meta ?? [], ['delivery' => $how]),
+        ])->save();
+
+        ResourceDelivered::dispatch($grant);
+    }
+
+    /**
+     * The variables for a mail, after listeners have had their say.
+     *
+     * The seam for a host that needs one more placeholder (a link of its own,
+     * say) without subclassing this service. {@see DeliveryVariables}.
+     *
+     * @return array<string, string>
+     */
+    protected function resolveVariables(Grant $grant, string $kind): array
+    {
+        $event = new DeliveryVariables($grant, $kind, $this->variables($grant));
+
+        event($event);
+
+        return $event->variables;
     }
 
     /** @return array<string, string> */

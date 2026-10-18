@@ -116,9 +116,11 @@ class LeadMagnetMapObjects implements ProvidesMapObjects
             label: $resource->title !== '' ? (string) $resource->title : $this->idOf($resource),
             cpUrl: cp_route('lead-magnets.resources.show', $resource->id),
             enabled: (bool) $resource->published,
-            detail: $resource->isLink()
-                ? __('lead-magnets::resources.delivery_link')
-                : __('lead-magnets::resources.delivery_file'),
+            detail: match (true) {
+                $resource->isLink() => __('lead-magnets::resources.delivery_link'),
+                $resource->isAccess() => __('lead-magnets::resources.delivery_access'),
+                default => __('lead-magnets::resources.delivery_file'),
+            },
         );
     }
 
