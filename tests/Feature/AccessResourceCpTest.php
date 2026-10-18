@@ -7,6 +7,69 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Statamic\Facades\User;
 
+interface FakeSeriesRepoContract {}
+
+class FakeSeriesRepo implements FakeSeriesRepoContract
+{
+    /** @var list<object> */
+    public static array $all = [];
+
+    public function all(): array
+    {
+        return self::$all;
+    }
+}
+
+class FakeSeriesRun
+{
+    /** @var list<string> */
+    public static array $ran = [];
+
+    public static bool $throws = false;
+
+    /** @var array<string, string> */
+    public array $wheres = [];
+
+    public static function query(): self
+    {
+        return new self;
+    }
+
+    public function where(string $column, mixed $value): self
+    {
+        $this->wheres[$column] = (string) $value;
+
+        return $this;
+    }
+
+    public function exists(): bool
+    {
+        if (self::$throws) {
+            throw new RuntimeException('no history');
+        }
+
+        return in_array($this->wheres['automation_uuid'].'|'.$this->wheres['subject_key'], self::$ran, true);
+    }
+}
+
+class FakeSeriesBridge extends AutomationsBridge
+{
+    protected function repository(): string
+    {
+        return FakeSeriesRepoContract::class;
+    }
+
+    protected function runModel(): string
+    {
+        return FakeSeriesRun::class;
+    }
+
+    protected function find(string $handle): ?array
+    {
+        return parent::find($handle);
+    }
+}
+
 describe('Control Panel', function (): void {
     beforeEach(function (): void {
         Gate::before(fn () => true);
@@ -121,5 +184,36 @@ describe('Automations bridge', function (): void {
         expect($bridge->available())->toBeFalse()
             ->and($bridge->isLive('serie'))->toBeNull()
             ->and($bridge->takesOver('serie', 'a@example.com'))->toBeFalse();
+    });
+
+    it('takes over only for a live series the address has not run', function (): void {
+        app()->bind(FakeSeriesRepoContract::class, FakeSeriesRepo::class);
+        FakeSeriesRepo::$all = [
+            (object) ['handle' => 'live', 'uuid' => 'u-live', 'enabled' => true],
+            (object) ['handle' => 'off', 'uuid' => 'u-off', 'enabled' => false],
+        ];
+        FakeSeriesRun::$ran = ['u-live|had@example.com'];
+
+        $bridge = new FakeSeriesBridge;
+
+        expect($bridge->available())->toBeTrue()
+            ->and($bridge->takesOver('live', ' New@Example.com '))->toBeTrue()
+            ->and($bridge->takesOver('live', 'had@example.com'))->toBeFalse()
+            ->and($bridge->takesOver('off', 'new@example.com'))->toBeFalse()
+            ->and($bridge->takesOver('missing', 'new@example.com'))->toBeFalse()
+            ->and($bridge->takesOver('', 'new@example.com'))->toBeFalse()
+            ->and($bridge->isLive('live'))->toBeTrue()
+            ->and($bridge->isLive('off'))->toBeFalse()
+            ->and($bridge->isLive('missing'))->toBeNull();
+    });
+
+    it('falls back to the delivery mail when the history cannot be read', function (): void {
+        app()->bind(FakeSeriesRepoContract::class, FakeSeriesRepo::class);
+        FakeSeriesRepo::$all = [(object) ['handle' => 'live', 'uuid' => 'u-live', 'enabled' => true]];
+        FakeSeriesRun::$throws = true;
+
+        expect((new FakeSeriesBridge)->takesOver('live', 'new@example.com'))->toBeFalse();
+
+        FakeSeriesRun::$throws = false;
     });
 });

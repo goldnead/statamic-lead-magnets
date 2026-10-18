@@ -10,8 +10,9 @@
   landing path. New placeholder `{{ access_url }}` in the delivery template.
 - *Mail series* on a resource: the handle of an automation whose first mail replaces the delivery
   mail for a first-time reader. Falls back to the delivery mail without the automations addon, with
-  the automation off, or for a reader who had the series. Needs automations with
-  `seriesIsLive()` and `seriesHasRun()` (optional bridge).
+  the automation off, or for a reader who had the series (optional bridge, reads automations'
+  repository and run history). The series itself starts from its own trigger, for example
+  `entitlements.granted` on the product.
 - Event `DeliveryVariables`: add placeholders to the confirmation and delivery mails from a
   listener, no subclass of `DeliveryService` needed.
 - A request notice: `notifications.webhook_url` posts every request to a Discord-compatible webhook.

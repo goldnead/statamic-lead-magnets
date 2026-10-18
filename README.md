@@ -225,8 +225,10 @@ for freebies that live behind a login, such as a free mini course.
   reader whose series is switched on, the series' first mail replaces the
   delivery mail, and no delivery mail goes out. A reader who had the series
   before, an automation that is off, or an install without
-  `goldnead/statamic-automations` gets the delivery mail. Needs automations with
-  `Automations::seriesIsLive()` and `seriesHasRun()`.
+  `goldnead/statamic-automations` gets the delivery mail. The addon reads
+  automations' repository and run history (an optional bridge); it starts nothing
+  itself, the series' own trigger (for example `entitlements.granted` on the
+  product) does.
 
 The addon never creates a user. The host binds
 `Goldnead\LeadMagnets\Contracts\AccessSubjectResolver`:
