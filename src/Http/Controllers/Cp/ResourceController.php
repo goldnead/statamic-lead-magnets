@@ -199,6 +199,7 @@ class ResourceController extends Controller
                 'confirmation_template' => $record->confirmation_template,
                 'delivery_template' => $record->delivery_template,
                 'delivery_series' => $record->delivery_series,
+                'page_entry' => $record->page_entry,
             ],
             // The detail page is the form — the same shape the create page
             // gets. Without the permission to change anything it is handed no
@@ -516,6 +517,8 @@ class ResourceController extends Controller
             'access_product' => ['nullable', 'string', 'max:191', 'required_if:delivery_type,access'],
             'access_path' => ['nullable', 'string', 'max:255', 'regex:/^\/(?!\/)[^\s\\\\]*$/'],
             'delivery_series' => ['nullable', 'string', 'max:191'],
+            // The entry id of the page the sign-up form stands on; the map draws the edge from it.
+            'page_entry' => ['nullable', 'string', 'max:191'],
             'requires_confirmation' => [
                 'nullable',
                 'boolean',
@@ -593,6 +596,7 @@ class ResourceController extends Controller
             'confirmation_template' => $this->trimmedOrNull($data['confirmation_template'] ?? null),
             'delivery_template' => $this->trimmedOrNull($data['delivery_template'] ?? null),
             'delivery_series' => $this->trimmedOrNull($data['delivery_series'] ?? null),
+            'page_entry' => $this->trimmedOrNull($data['page_entry'] ?? null),
         ];
     }
 

@@ -69,5 +69,8 @@
     "Landing path": "Zielpfad",
     "Where the sign-in link in the delivery mail leads, e.g. /account/courses/my-course. Starts with a slash.": "Wohin der Anmelde-Link in der Liefermail führt, z. B. /account/courses/mein-kurs. Beginnt mit einem Schrägstrich.",
     "Mail series": "Mailserie",
-    "Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out.": "Handle einer Automation. Beim ersten Mal ersetzt ihre erste Mail die Liefermail. Braucht das Automations-Addon; ohne es oder bei ausgeschalteter Automation geht die Liefermail raus."
+    "Handle of an automation. For a first-time reader its first mail replaces the delivery mail. Needs the Automations addon; without it, or when the automation is off, the delivery mail goes out.": "Handle einer Automation. Beim ersten Mal ersetzt ihre erste Mail die Liefermail. Braucht das Automations-Addon; ohne es oder bei ausgeschalteter Automation geht die Liefermail raus.",
+    "Page": "Seite",
+    "Page on which the sign-up form stands. The map draws the connection page -> lead magnet from it.": "Seite, auf der das Anmeldeformular steht. Die Landkarte zeichnet daraus die Verbindung Seite -> Lead Magnet.",
+    "Entry ID of the page": "Eintrags-Id der Seite"
 }

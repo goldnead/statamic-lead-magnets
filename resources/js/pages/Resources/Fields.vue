@@ -290,6 +290,16 @@ const fileBlueprintFields = computed(
                     >
                         <Input v-model="form.delivery_series" :read-only="readOnly" />
                     </Field>
+
+                    <!-- Kein Entry-Picker im Formular: die Id der Seite wird von Hand eingetragen. -->
+                    <Field
+                        :label="__('Page')"
+                        :error="errors.page_entry"
+                        :read-only="readOnly"
+                        :instructions="__('Page on which the sign-up form stands. The map draws the connection page -> lead magnet from it.')"
+                    >
+                        <Input v-model="form.page_entry" :read-only="readOnly" :placeholder="__('Entry ID of the page')" />
+                    </Field>
                 </div>
             </Card>
         </div>
