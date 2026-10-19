@@ -33,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $confirmation_template
  * @property string|null $delivery_template
  * @property string|null $delivery_series
+ * @property string|null $page_entry
  */
 class Resource extends Model
 {

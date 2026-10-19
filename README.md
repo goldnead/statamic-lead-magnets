@@ -327,6 +327,8 @@ Event::listen(ResourceConfirmed::class, function (ResourceConfirmed $event) {
 
 With `goldnead/statamic-brand-context` 1.17 or newer, every lead magnet is offered to the funnels map as the object type `lead_magnet`, keyed by the resource handle. The map gets the title, a link to the resource in the Control Panel, the published switch and, as its one number, the requests over the period. Requests are counted the same way as the insights figure "Requested", narrowed to that resource. The provider is `Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects`.
 
+The resource field *Page* takes the entry id of the page the sign-up form stands on. With `goldnead/statamic-brand-context` 1.18 or newer, the map draws one edge from that page (`entry`) to the lead magnet, labelled "collects sign-ups"; the id is only a pointer, and an empty field draws no edge.
+
 ---
 
 ## Routes

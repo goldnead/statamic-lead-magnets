@@ -2,7 +2,9 @@
 
 namespace Goldnead\LeadMagnets\Integrations\Map;
 
+use Goldnead\BrandContext\Contracts\ProvidesMapEdges;
 use Goldnead\BrandContext\Contracts\ProvidesMapObjects;
+use Goldnead\BrandContext\Map\MapEdge;
 use Goldnead\BrandContext\Map\MapMetric;
 use Goldnead\BrandContext\Map\MapObject;
 use Goldnead\BrandContext\Map\MapPeriod;
@@ -26,7 +28,7 @@ use Illuminate\Support\Carbon;
  * with `now()` in that zone. The grant model's brand scope does the brand part,
  * as the metric's own brand filter does in the insights addon.
  */
-class LeadMagnetMapObjects implements ProvidesMapObjects
+class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 {
     public const TYPE = 'lead_magnet';
 
@@ -94,6 +96,36 @@ class LeadMagnetMapObjects implements ProvidesMapObjects
             ->count();
 
         return new MapMetric((int) $count, __('lead-magnets::insights.map_requests'), $period);
+    }
+
+    /**
+     * The page each lead magnet's sign-up form stands on, one edge per resource.
+     *
+     * Only a resource that names a page yields an edge; the edge is read from
+     * `page_entry` and nothing else. The brand scope of the model keeps it to
+     * the current brand, like every other read here.
+     *
+     * @return iterable<int, MapEdge>
+     */
+    public function edges(): iterable
+    {
+        $resources = Resource::query()
+            ->whereNotNull('page_entry')
+            ->where('page_entry', '!=', '')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($resources as $resource) {
+            yield new MapEdge(
+                fromType: 'entry',
+                fromId: (string) $resource->page_entry,
+                toType: self::TYPE,
+                toId: $this->idOf($resource),
+                kind: 'collects',
+                label: __('lead-magnets::resources.map_edge_collects'),
+                derivedFrom: 'field `page` of the lead magnet',
+            );
+        }
     }
 
     /**

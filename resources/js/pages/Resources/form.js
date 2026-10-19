@@ -30,6 +30,7 @@ export function toForm(resource) {
         confirmation_template: resource?.confirmation_template || '',
         delivery_template: resource?.delivery_template || '',
         delivery_series: resource?.delivery_series || '',
+        page_entry: resource?.page_entry || '',
     };
 }
 
@@ -88,6 +89,7 @@ export function toPayload(form, fileValues, { creating = false } = {}) {
         confirmation_template: form.confirmation_template || null,
         delivery_template: form.delivery_template || null,
         delivery_series: form.delivery_series || null,
+        page_entry: form.page_entry || null,
     };
 }
 
@@ -104,7 +106,7 @@ export function visibleFieldKeys(form, { creating = false } = {}) {
     const keys = [
         'title', 'description', 'delivery_type', 'requires_confirmation', 'published',
         'link_ttl', 'max_downloads', 'grant_ttl_days', 'tags', 'marketing_list',
-        'list_via_confirmation', 'confirmation_template', 'delivery_template', 'delivery_series',
+        'list_via_confirmation', 'confirmation_template', 'delivery_template', 'delivery_series', 'page_entry',
     ];
 
     if (form.list_via_confirmation) keys.push('list_consent_text');

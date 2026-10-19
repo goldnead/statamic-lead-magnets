@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.13.0 — 2026-10-19
+
+### Added: the lead magnet's page (map)
+
+- A resource has a *Page* field: the entry id of the page its sign-up form stands on. The funnels map
+  draws one edge from that page to the lead magnet, labelled "collects sign-ups". An empty field draws
+  no edge. The edge needs `goldnead/statamic-brand-context` 1.18 or newer.
+
+### Upgrading: run php artisan migrate (one nullable column)
+
+- One migration: `page_entry` on `lead_magnet_resources`, nullable. Existing resources do not change.
+
 ## 3.12.0 — 2026-10-19
 
 ### Added
