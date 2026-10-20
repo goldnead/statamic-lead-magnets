@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.14.0 — 2026-10-20
+
 ### Added: draw lead magnet -> course on the map (connections)
 
 - The map provider offers the pair lead magnet -> course (`unlocks`). Connecting writes the course's
