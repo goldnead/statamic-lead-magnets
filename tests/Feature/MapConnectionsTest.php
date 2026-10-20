@@ -9,6 +9,7 @@ use Goldnead\BrandContext\Map\MapObjectRegistry;
 use Goldnead\BrandContext\Map\MapPeriod;
 use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
 use Goldnead\LeadMagnets\Models\Resource;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Gate;
 use Statamic\Facades\User;
 
@@ -192,21 +193,134 @@ it('authorises only users who may manage lead magnets', function (): void {
         ->and($this->provider->connectionAuthorized(connection(), null))->toBeFalse();
 });
 
-it('authorises a user holding manage lead magnets', function (): void {
-    $user = User::make()->email('editor2@example.test');
+function userWith(string $email, array $abilities): mixed
+{
+    $user = User::make()->email($email);
     $user->save();
 
-    Gate::before(fn ($u, $ability) => $ability === 'manage lead magnets' ? true : null);
+    Gate::before(fn ($u, $ability) => in_array($ability, $abilities, true) ? true : false);
+
+    return $user;
+}
+
+it('authorises a user holding the source and the target permission', function (): void {
+    $user = userWith('beide@example.test', ['manage lead magnets', 'edit courses entries']);
 
     expect($this->provider->connectionAuthorized(connection(), $user))->toBeTrue();
 });
 
-it('is reachable through the registry rules', function (): void {
-    app(MapObjectRegistry::class)->register(LeadMagnetMapObjects::class);
+it('refuses a user who may only manage lead magnets, not edit the course', function (): void {
+    $user = userWith('quelle@example.test', ['manage lead magnets']);
 
-    if (! method_exists(MapObjectRegistry::class, 'connectionRules')) {
-        $this->markTestSkipped('Installed brand-context predates connection rules.');
+    expect($this->provider->connectionAuthorized(connection(), $user))->toBeFalse();
+});
+
+it('refuses a user who may only edit the course, not manage lead magnets', function (): void {
+    $user = userWith('ziel@example.test', ['edit courses entries']);
+
+    expect($this->provider->connectionAuthorized(connection(), $user))->toBeFalse();
+});
+
+it('derives the target permission from the configured courses collection', function (): void {
+    config(['courses.collections.courses' => 'kurse']);
+    $user = userWith('kurse@example.test', ['manage lead magnets', 'edit kurse entries']);
+
+    expect($this->provider->connectionAuthorized(connection(), $user))->toBeTrue();
+});
+
+it('does not accept the default courses permission when the collection is renamed', function (): void {
+    config(['courses.collections.courses' => 'kurse']);
+    $user = userWith('kurse2@example.test', ['manage lead magnets', 'edit courses entries']);
+
+    expect($this->provider->connectionAuthorized(connection(), $user))->toBeFalse();
+});
+
+/** A provider whose field changes after the preview checked it and before the write. */
+class RacingLeadMagnetMapObjects extends LeadMagnetMapObjects
+{
+    public static ?string $changeTo = null;
+
+    protected function connectionTarget(array $c, string $action): array
+    {
+        $target = parent::connectionTarget($c, $action);
+
+        Resource::query()->where('handle', $c['from_id'])->update(['access_product' => self::$changeTo]);
+
+        return $target;
     }
+}
 
-    expect(collect(app(MapObjectRegistry::class)->connectionRules())->pluck('kind')->all())->toContain('unlocks');
+it('writes nothing on connect when the field changed after the preview', function (): void {
+    $magnet = connectAccessMagnet('minikurs', null);
+    RacingLeadMagnetMapObjects::$changeTo = 'mitgliedschaft';
+
+    expect(fn () => app(RacingLeadMagnetMapObjects::class)->connect(connection()))
+        ->toThrow(DomainException::class, __('lead-magnets::resources.map_connect_changed'));
+    expect($magnet->fresh()->access_product)->toBe('mitgliedschaft');
+});
+
+it('writes nothing on disconnect when the field changed after the preview', function (): void {
+    $magnet = connectAccessMagnet('minikurs', 'vokale-produkt');
+    RacingLeadMagnetMapObjects::$changeTo = 'mitgliedschaft';
+
+    expect(fn () => app(RacingLeadMagnetMapObjects::class)->disconnect(connection()))
+        ->toThrow(DomainException::class, __('lead-magnets::resources.map_connect_changed'));
+    expect($magnet->fresh()->access_product)->toBe('mitgliedschaft');
+});
+
+it('has the change message in German and English', function (): void {
+    expect(__('lead-magnets::resources.map_connect_changed'))->not->toBe('lead-magnets::resources.map_connect_changed');
+    app()->setLocale('de');
+    expect(__('lead-magnets::resources.map_connect_changed'))->not->toBe('lead-magnets::resources.map_connect_changed');
+});
+
+describe('through the registry', function (): void {
+    beforeEach(function (): void {
+        if (! method_exists(MapObjectRegistry::class, 'connectionRules')) {
+            $this->markTestSkipped('Installed brand-context predates connection rules.');
+        }
+
+        app(MapObjectRegistry::class)->register(LeadMagnetMapObjects::class);
+    });
+
+    it('owns the lead magnet to course unlocks rule and edge', function (): void {
+        connectAccessMagnet('minikurs', 'vokale-produkt');
+        $registry = app(MapObjectRegistry::class);
+
+        $rule = $registry->ruleFor('lead_magnet', 'course');
+        $edge = collect($registry->edges())->first(fn ($e) => $e->fromType === 'lead_magnet' && $e->kind === 'unlocks');
+
+        expect($rule['owner'])->toBe('lead_magnet')
+            ->and($edge)->not->toBeNull()
+            ->and($edge->ownerType)->toBe('lead_magnet')
+            ->and($edge->toId)->toBe('kurs-vokale');
+    });
+
+    it('connects and disconnects end to end for a user with both permissions', function (): void {
+        $magnet = connectAccessMagnet('minikurs', null);
+        $user = userWith('e2e@example.test', ['manage lead magnets', 'edit courses entries']);
+        $registry = app(MapObjectRegistry::class);
+
+        $preview = $registry->previewConnection(connection(), 'connect', $user);
+        $made = $registry->applyConnection(connection(), 'connect', $user, $preview['before']);
+
+        expect($magnet->fresh()->access_product)->toBe('vokale-produkt');
+
+        $registry->applyConnection(connection(), 'disconnect', $user);
+
+        expect($magnet->fresh()->access_product)->toBeNull()
+            ->and($made['undo']['action'])->toBe('disconnect');
+    });
+
+    it('refuses preview and write for a user without the target permission', function (): void {
+        $magnet = connectAccessMagnet('minikurs', null);
+        $user = userWith('nur-quelle@example.test', ['manage lead magnets']);
+        $registry = app(MapObjectRegistry::class);
+
+        expect(fn () => $registry->previewConnection(connection(), 'connect', $user))
+            ->toThrow(AuthorizationException::class);
+        expect(fn () => $registry->applyConnection(connection(), 'connect', $user))
+            ->toThrow(AuthorizationException::class);
+        expect($magnet->fresh()->access_product)->toBeNull();
+    });
 });

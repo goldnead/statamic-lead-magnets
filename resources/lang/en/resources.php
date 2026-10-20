@@ -61,4 +61,5 @@ return [
     'map_connect_already' => '“:magnet” already unlocks “:course”.',
     'map_connect_occupied' => '“:magnet” already grants the product “:product”. Release that first.',
     'map_connect_not_connected' => '“:magnet” does not unlock “:course”, so there is nothing to release.',
+    'map_connect_changed' => 'This lead magnet was changed in the meantime. Nothing was written; reload the map and try again.',
 ];

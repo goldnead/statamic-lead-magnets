@@ -61,4 +61,5 @@ return [
     'map_connect_already' => '„:magnet“ schaltet „:course“ schon frei.',
     'map_connect_occupied' => '„:magnet“ vergibt schon das Produkt „:product“. Erst das lösen.',
     'map_connect_not_connected' => '„:magnet“ schaltet „:course“ nicht frei, es gibt nichts zu lösen.',
+    'map_connect_changed' => 'Dieser Lead-Magnet wurde inzwischen geändert. Es wurde nichts geschrieben, lade die Landkarte neu und versuche es noch einmal.',
 ];

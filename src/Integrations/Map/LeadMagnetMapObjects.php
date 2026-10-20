@@ -232,10 +232,21 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
         ]];
     }
 
-    /** The permission that guards editing a lead magnet in the Control Panel. */
+    /**
+     * Both ends: the permission that guards editing a lead magnet, and the one
+     * that lets the user edit the course entry. The latter is Statamic's own
+     * `edit {collection} entries` for the courses collection, named by the
+     * same config key the courses addon reads (`courses.collections.courses`).
+     */
     public function connectionAuthorized(array $c, $user): bool
     {
-        return $user !== null && (bool) $user->can('manage lead magnets');
+        if ($user === null) {
+            return false;
+        }
+
+        $collection = (string) config('courses.collections.courses', 'courses');
+
+        return (bool) $user->can('manage lead magnets') && (bool) $user->can('edit '.$collection.' entries');
     }
 
     /** @return array{consequence:string,before:string,after:string} */
@@ -263,8 +274,9 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     {
         [$resource, $product] = $this->connectionTarget($c, 'connect');
 
-        $resource->access_product = $product;
-        $resource->save();
+        // Compare and set: only an empty field is written, and the check is
+        // part of the UPDATE, so a change since connectionTarget() read it wins.
+        $this->writeIfStill($resource, "TRIM(COALESCE(access_product, '')) = ''", [], $product);
 
         return ['before' => __('lead-magnets::resources.map_connect_empty'), 'after' => $product];
     }
@@ -274,10 +286,28 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     {
         [$resource, $product] = $this->connectionTarget($c, 'disconnect');
 
-        $resource->access_product = null;
-        $resource->save();
+        $this->writeIfStill($resource, 'TRIM(access_product) = ?', [$product], null);
 
         return ['before' => $product, 'after' => __('lead-magnets::resources.map_connect_empty')];
+    }
+
+    /**
+     * Writes `access_product` only while it still holds the value the check saw.
+     *
+     * @param  array<int, string>  $bindings
+     *
+     * @throws \DomainException when the field changed in the meantime
+     */
+    protected function writeIfStill(Resource $resource, string $condition, array $bindings, ?string $value): void
+    {
+        $changed = Resource::query()
+            ->whereKey($resource->getKey())
+            ->whereRaw($condition, $bindings)
+            ->update(['access_product' => $value, 'updated_at' => Carbon::now()]);
+
+        if ($changed !== 1) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_changed'));
+        }
     }
 
     /**
