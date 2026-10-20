@@ -13,6 +13,7 @@ use Goldnead\LeadMagnets\Integrations\Insights\Requested;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * The lead magnets as objects a funnels map can point at.
@@ -89,17 +90,99 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
             return null;
         }
 
+        return new MapMetric($this->requestCount($resource, $period), __('lead-magnets::insights.map_requests'), $period);
+    }
+
+    /**
+     * The detail panel (brand-context 1.19, found by method_exists): one facts
+     * block with the delivery type, the requests in the period (the card's own
+     * count) and the target, a course or a file. A row whose source is missing
+     * is left out, never filled in.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public function details(string $id, MapPeriod $period): ?array
+    {
+        $resource = $this->resolve($id);
+
+        if (! $resource) {
+            return null;
+        }
+
+        $rows = [
+            ['label' => __('lead-magnets::resources.map_detail_delivery'), 'value' => $this->deliveryLabel($resource), 'href' => null],
+            ['label' => __('lead-magnets::insights.map_requests'), 'value' => (string) $this->requestCount($resource, $period), 'href' => null],
+        ];
+
+        foreach ($this->targetRows($resource) as $row) {
+            $rows[] = $row;
+        }
+
+        return [['kind' => 'facts', 'title' => null, 'rows' => $rows]];
+    }
+
+    /**
+     * The grants requested in the period: the figure on the card and in the
+     * detail panel, counted here and nowhere else.
+     */
+    protected function requestCount(Resource $resource, MapPeriod $period): int
+    {
         $zone = date_default_timezone_get();
 
-        $count = Grant::query()
+        return (int) Grant::query()
             ->where('resource_id', $resource->id)
             ->whereNotNull('requested_at')
             ->where('requested_at', '>=', $period->from->setTimezone($zone))
             ->where('requested_at', '<', $period->to->setTimezone($zone))
             ->where('requested_at', '<=', Carbon::now($zone))
             ->count();
+    }
 
-        return new MapMetric((int) $count, __('lead-magnets::insights.map_requests'), $period);
+    protected function deliveryLabel(Resource $resource): string
+    {
+        return match (true) {
+            $resource->isLink() => __('lead-magnets::resources.delivery_link'),
+            $resource->isAccess() => __('lead-magnets::resources.delivery_access'),
+            default => __('lead-magnets::resources.delivery_file'),
+        };
+    }
+
+    /**
+     * The "Target" row: the titles of the courses an access product opens
+     * (asked through the map registry, as the unlock edges are), or the names
+     * of the files. A link, or a source that yields nothing, gives no row.
+     *
+     * @return list<array{label: string, value: string, href: ?string}>
+     */
+    protected function targetRows(Resource $resource): array
+    {
+        $label = __('lead-magnets::resources.map_detail_target');
+
+        if ($resource->isAccess()) {
+            $product = trim((string) $resource->access_product);
+            $slugs = $product === '' ? [] : ($this->coursesByProduct()[$product] ?? []);
+            $registry = app(MapObjectRegistry::class);
+            $titles = [];
+            $href = null;
+
+            foreach ($slugs as $slug) {
+                $course = $registry->lookup('course', $slug)->object;
+
+                if ($course !== null) {
+                    $titles[] = $course->label;
+                    $href ??= $course->cpUrl;
+                }
+            }
+
+            return $titles === [] ? [] : [['label' => $label, 'value' => Str::limit(implode(', ', $titles), 120), 'href' => count($titles) === 1 ? $href : null]];
+        }
+
+        $names = array_values(array_filter(array_map(
+            fn (array $file) => $file['label'] ?? (basename($file['path']) ?: null),
+            $resource->fileList(),
+        )));
+
+        return $names === [] ? [] : [['label' => $label, 'value' => Str::limit(implode(', ', $names), 120), 'href' => null]];
     }
 
     /**
@@ -404,11 +487,7 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
             label: $resource->title !== '' ? (string) $resource->title : $this->idOf($resource),
             cpUrl: cp_route('lead-magnets.resources.show', $resource->id),
             enabled: (bool) $resource->published,
-            detail: match (true) {
-                $resource->isLink() => __('lead-magnets::resources.delivery_link'),
-                $resource->isAccess() => __('lead-magnets::resources.delivery_access'),
-                default => __('lead-magnets::resources.delivery_file'),
-            },
+            detail: $this->deliveryLabel($resource),
         );
     }
 

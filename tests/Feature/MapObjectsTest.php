@@ -1,6 +1,11 @@
 <?php
 
+use Goldnead\BrandContext\Contracts\ProvidesMapEdges;
+use Goldnead\BrandContext\Contracts\ProvidesMapObjects;
+use Goldnead\BrandContext\Map\MapEdge;
 use Goldnead\BrandContext\Map\MapLookup;
+use Goldnead\BrandContext\Map\MapMetric;
+use Goldnead\BrandContext\Map\MapObject;
 use Goldnead\BrandContext\Map\MapObjectRegistry;
 use Goldnead\BrandContext\Map\MapPeriod;
 use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
@@ -134,6 +139,96 @@ it('counts requests for one resource over the period only', function () {
 
 it('returns no metric for a resource that does not exist', function () {
     expect($this->map->metric('gibt-es-nicht', MapPeriod::lastDays(30)))->toBeNull();
+});
+
+/** Stands in for the courses addon: knows the product -> course edge and the course's title. */
+class DetailsFakeCourseMapObjects implements ProvidesMapEdges, ProvidesMapObjects
+{
+    public function type(): string
+    {
+        return 'course';
+    }
+
+    public function typeLabel(): string
+    {
+        return 'Course';
+    }
+
+    public function objects(?string $query = null, int $limit = 50): array
+    {
+        return [];
+    }
+
+    public function find(string $id): ?MapObject
+    {
+        return $id === 'kurs-vokale'
+            ? new MapObject('course', $id, 'Vokale Minikurs', '/cp/kurs', true)
+            : null;
+    }
+
+    public function metric(string $id, MapPeriod $period): ?MapMetric
+    {
+        return null;
+    }
+
+    public function edges(): iterable
+    {
+        yield new MapEdge('product', 'vokale-produkt', 'course', 'kurs-vokale', 'unlocks', 'unlocks', 'course field `product`');
+    }
+}
+
+/** @return array<string, string> label => value of the first facts block */
+function detailRows(?array $blocks): array
+{
+    $rows = [];
+
+    foreach (($blocks[0]['rows'] ?? []) as $row) {
+        $rows[$row['label']] = $row['value'];
+    }
+
+    return $rows;
+}
+
+it('details: facts with delivery type, requests in the period and the file as target', function () {
+    $resource = mapResource('atmung', 'Atemübungen', true, Resource::TYPE_FILE);
+    $resource->update(['link_url' => null, 'files' => [['key' => 'a', 'path' => 'pdf/atmung-uebung.pdf', 'label' => null, 'group' => null]]]);
+
+    mapRequestAt('2026-08-10 09:00:00', $resource, 'a@example.test');
+    mapRequestAt('2026-08-12 09:00:00', $resource, 'b@example.test');
+    mapRequestAt('2026-06-01 09:00:00', $resource, 'c@example.test');
+
+    $period = MapPeriod::lastDays(30);
+    $blocks = $this->map->details('atmung', $period);
+
+    expect($blocks)->toHaveCount(1)
+        ->and($blocks[0]['kind'])->toBe('facts')
+        ->and(detailRows($blocks))->toBe([
+            'Delivery' => 'File',
+            'Requests' => '2',
+            'Target' => 'atmung-uebung.pdf',
+        ])
+        // The very same figure the card shows.
+        ->and((string) $this->map->metric('atmung', $period)->value)->toBe('2');
+});
+
+it('details: an access lead magnet names the course its product opens, with a link', function () {
+    app(MapObjectRegistry::class)->register(DetailsFakeCourseMapObjects::class);
+    mapResource('minikurs', 'Minikurs', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'vokale-produkt']);
+
+    $blocks = $this->map->details('minikurs', MapPeriod::lastDays(30));
+
+    expect(detailRows($blocks))->toBe(['Delivery' => 'Access', 'Requests' => '0', 'Target' => 'Vokale Minikurs'])
+        ->and($blocks[0]['rows'][2]['href'])->toBe('/cp/kurs');
+});
+
+it('details: omits the target row when there is no source for it', function () {
+    // A link has no file; an access product no course opens has no title.
+    mapResource('linkmagnet', 'Linkmagnet');
+    mapResource('mitglied', 'Mitglied', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'mitgliedschaft']);
+
+    expect(detailRows($this->map->details('linkmagnet', MapPeriod::lastDays(30))))->toBe(['Delivery' => 'Link', 'Requests' => '0'])
+        ->and(detailRows($this->map->details('mitglied', MapPeriod::lastDays(30))))->toBe(['Delivery' => 'Access', 'Requests' => '0'])
+        ->and($this->map->details('gibt-es-nicht', MapPeriod::lastDays(30)))->toBeNull();
 });
 
 it('is registered in the map registry after boot', function () {
