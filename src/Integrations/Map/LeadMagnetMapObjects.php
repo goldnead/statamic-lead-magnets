@@ -7,6 +7,7 @@ use Goldnead\BrandContext\Contracts\ProvidesMapObjects;
 use Goldnead\BrandContext\Map\MapEdge;
 use Goldnead\BrandContext\Map\MapMetric;
 use Goldnead\BrandContext\Map\MapObject;
+use Goldnead\BrandContext\Map\MapObjectRegistry;
 use Goldnead\BrandContext\Map\MapPeriod;
 use Goldnead\LeadMagnets\Integrations\Insights\Requested;
 use Goldnead\LeadMagnets\Models\Grant;
@@ -31,6 +32,9 @@ use Illuminate\Support\Carbon;
 class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 {
     public const TYPE = 'lead_magnet';
+
+    /** Shared across instances: the registry resolves its own instance of this class. */
+    protected static bool $collectingCourses = false;
 
     public function type(): string
     {
@@ -109,6 +113,13 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
      */
     public function edges(): iterable
     {
+        // Asked from inside coursesByProduct(): the registry only wants the
+        // courses addon's edges there, so this provider adds nothing and runs
+        // none of its own queries a second time.
+        if (static::$collectingCourses) {
+            return;
+        }
+
         $resources = Resource::query()
             ->whereNotNull('page_entry')
             ->where('page_entry', '!=', '')
@@ -125,6 +136,84 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
                 label: __('lead-magnets::resources.map_edge_collects'),
                 derivedFrom: 'field `page` of the lead magnet',
             );
+        }
+
+        yield from $this->unlockEdges();
+    }
+
+    /**
+     * The course an access lead magnet opens, one edge per course.
+     *
+     * The field `access_product` names the product slug the confirmed reader is
+     * granted; only a resource of type access with that field set yields an
+     * edge. Which course a product opens is the courses addon's knowledge (its
+     * edge product -> unlocks -> course), asked through the map registry so this
+     * addon needs no course class. A product no course opens, or an installation
+     * without courses, yields no edge: an access slug that is no course (a
+     * membership) is not an error.
+     *
+     * @return iterable<int, MapEdge>
+     */
+    protected function unlockEdges(): iterable
+    {
+        $resources = Resource::query()
+            ->where('delivery_type', Resource::TYPE_ACCESS)
+            ->whereNotNull('access_product')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Resource $resource) => trim((string) $resource->access_product) !== '');
+
+        if ($resources->isEmpty()) {
+            return;
+        }
+
+        $coursesByProduct = $this->coursesByProduct();
+
+        foreach ($resources as $resource) {
+            $product = trim((string) $resource->access_product);
+
+            // A product no course opens (a membership, a bundle) is legitimate:
+            // no edge and no alarm.
+            foreach ($coursesByProduct[$product] ?? [] as $course) {
+                yield new MapEdge(
+                    fromType: self::TYPE,
+                    fromId: $this->idOf($resource),
+                    toType: 'course',
+                    toId: $course,
+                    kind: 'unlocks',
+                    label: __('lead-magnets::resources.map_edge_unlocks'),
+                    derivedFrom: 'field `access_product` of the lead magnet',
+                );
+            }
+        }
+    }
+
+    /**
+     * Course slugs per product slug, from the edges other providers already derive.
+     *
+     * Called once per edges() run, and only when an access resource exists. The
+     * registry has no narrower accessor than edges() for all providers, so it
+     * calls this provider's edges() too; the flag makes that inner call return
+     * at once (no loop, no repeated queries).
+     *
+     * @return array<string, array<int, string>>
+     */
+    protected function coursesByProduct(): array
+    {
+        static::$collectingCourses = true;
+
+        try {
+            $map = [];
+
+            foreach (app(MapObjectRegistry::class)->edges() as $edge) {
+                if ($edge->fromType === 'product' && $edge->toType === 'course' && $edge->kind === 'unlocks') {
+                    $map[$edge->fromId][] = $edge->toId;
+                }
+            }
+
+            return $map;
+        } finally {
+            static::$collectingCourses = false;
         }
     }
 
