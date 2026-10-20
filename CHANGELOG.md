@@ -7,8 +7,8 @@
 - A lead magnet of type access draws an edge "unlocks" to the course its *Access product* opens. The
   edge is computed from the field `access_product` and the courses addon's own product -> course edge,
   asked through the map registry, so no dependency on `goldnead/statamic-courses` is added. A product
-  no course opens (or an installation without courses) still draws the edge to the slug as written,
-  marked as a broken reference. Nothing is stored.
+  no course opens (a membership, or an installation without courses) draws no edge and raises no
+  problem. Nothing is stored.
 
 ## 3.13.0 — 2026-10-19
 

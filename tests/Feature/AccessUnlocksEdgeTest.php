@@ -9,6 +9,7 @@ use Goldnead\BrandContext\Map\MapObjectRegistry;
 use Goldnead\BrandContext\Map\MapPeriod;
 use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
 use Goldnead\LeadMagnets\Models\Resource;
+use Illuminate\Support\Facades\DB;
 
 /*
  * A lead magnet with access hands the reader a product slug (`access_product`).
@@ -23,6 +24,8 @@ class FakeCourseMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 {
     /** @var array<string, array<int, string>> product => course slugs */
     public static array $courses = [];
+
+    public static int $calls = 0;
 
     public function type(): string
     {
@@ -51,6 +54,8 @@ class FakeCourseMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 
     public function edges(): iterable
     {
+        self::$calls++;
+
         foreach (self::$courses as $product => $slugs) {
             foreach ($slugs as $slug) {
                 yield new MapEdge('product', $product, 'course', $slug, 'unlocks', 'unlocks', 'course field `product`');
@@ -109,15 +114,48 @@ it('draws one edge per course when a product opens several', function (): void {
     expect(array_map(fn (MapEdge $e) => $e->toId, unlockEdges()))->toBe(['kurs-a', 'kurs-b']);
 });
 
-it('keeps a dead reference visible when no course opens the product', function (): void {
-    accessResource('minikurs', 'gibt-es-nicht');
+it('draws no edge and raises no alarm when no course opens the product', function (): void {
+    // A membership, a bundle: an access slug that is not a course is legitimate.
+    FakeCourseMapObjects::$courses = ['vokale-produkt' => ['kurs-vokale']];
+    accessResource('mitglied', 'mitgliedschaft');
+
+    $all = iterator_to_array(app(LeadMagnetMapObjects::class)->edges(), false);
+
+    expect(unlockEdges())->toBe([])
+        ->and(array_filter($all, fn (MapEdge $e) => $e->toLabel !== null))->toBe([]);
+});
+
+it('matches on the product slug, not on the course handle (slug differs from handle)', function (): void {
+    // course.product is an entitlement slug; the course's own handle is another string.
+    FakeCourseMapObjects::$courses = ['vokale-produkt' => ['kurs-vokale']];
+    accessResource('richtig', 'vokale-produkt');
+    accessResource('falsch', 'kurs-vokale');
 
     $edges = unlockEdges();
 
     expect($edges)->toHaveCount(1)
-        ->and($edges[0]->toType)->toBe('course')
-        ->and($edges[0]->toId)->toBe('gibt-es-nicht')
-        ->and($edges[0]->toLabel)->toBe('gibt-es-nicht');
+        ->and($edges[0]->fromId)->toBe('richtig')
+        ->and($edges[0]->toId)->toBe('kurs-vokale');
+});
+
+it('computes the graph once per call and does not re-run its own queries inside', function (): void {
+    FakeCourseMapObjects::$courses = ['vokale-produkt' => ['kurs-vokale']];
+    accessResource('minikurs', 'vokale-produkt');
+    app(MapObjectRegistry::class)->register(LeadMagnetMapObjects::class);
+    $provider = app(LeadMagnetMapObjects::class);
+
+    FakeCourseMapObjects::$calls = 0;
+    $queries = 0;
+    DB::listen(function ($query) use (&$queries): void {
+        if (str_contains($query->sql, 'lead_magnet_resources')) {
+            $queries++;
+        }
+    });
+
+    iterator_to_array($provider->edges(), false);
+
+    expect(FakeCourseMapObjects::$calls)->toBe(1)
+        ->and($queries)->toBe(2); // page edges + access edges, once
 });
 
 it('draws no edge for a link resource, a file resource or an access resource without a target', function (): void {

@@ -33,6 +33,9 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 {
     public const TYPE = 'lead_magnet';
 
+    /** Shared across instances: the registry resolves its own instance of this class. */
+    protected static bool $collectingCourses = false;
+
     public function type(): string
     {
         return self::TYPE;
@@ -110,6 +113,13 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
      */
     public function edges(): iterable
     {
+        // Asked from inside coursesByProduct(): the registry only wants the
+        // courses addon's edges there, so this provider adds nothing and runs
+        // none of its own queries a second time.
+        if (static::$collectingCourses) {
+            return;
+        }
+
         $resources = Resource::query()
             ->whereNotNull('page_entry')
             ->where('page_entry', '!=', '')
@@ -139,8 +149,8 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
      * edge. Which course a product opens is the courses addon's knowledge (its
      * edge product -> unlocks -> course), asked through the map registry so this
      * addon needs no course class. A product no course opens, or an installation
-     * without courses, still yields one edge to the slug as written, with
-     * `toLabel` set, so the map draws the broken reference.
+     * without courses, yields no edge: an access slug that is no course (a
+     * membership) is not an error.
      *
      * @return iterable<int, MapEdge>
      */
@@ -161,19 +171,18 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 
         foreach ($resources as $resource) {
             $product = trim((string) $resource->access_product);
-            $courses = $coursesByProduct[$product] ?? [];
 
-            foreach ($courses !== [] ? $courses : [null] as $course) {
+            // A product no course opens (a membership, a bundle) is legitimate:
+            // no edge and no alarm.
+            foreach ($coursesByProduct[$product] ?? [] as $course) {
                 yield new MapEdge(
                     fromType: self::TYPE,
                     fromId: $this->idOf($resource),
                     toType: 'course',
-                    toId: $course ?? $product,
+                    toId: $course,
                     kind: 'unlocks',
                     label: __('lead-magnets::resources.map_edge_unlocks'),
-                    derivedFrom: 'field `access_product` of the lead magnet'
-                        .($course === null ? ' (no course opens this product)' : ''),
-                    toLabel: $course === null ? $product : null,
+                    derivedFrom: 'field `access_product` of the lead magnet',
                 );
             }
         }
@@ -182,20 +191,16 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     /**
      * Course slugs per product slug, from the edges other providers already derive.
      *
-     * Re-entry returns nothing: the registry calls this provider's edges() too,
-     * and asking it for everyone's edges from inside must not ask again.
+     * Called once per edges() run, and only when an access resource exists. The
+     * registry has no narrower accessor than edges() for all providers, so it
+     * calls this provider's edges() too; the flag makes that inner call return
+     * at once (no loop, no repeated queries).
      *
      * @return array<string, array<int, string>>
      */
     protected function coursesByProduct(): array
     {
-        static $running = false;
-
-        if ($running) {
-            return [];
-        }
-
-        $running = true;
+        static::$collectingCourses = true;
 
         try {
             $map = [];
@@ -208,7 +213,7 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 
             return $map;
         } finally {
-            $running = false;
+            static::$collectingCourses = false;
         }
     }
 
