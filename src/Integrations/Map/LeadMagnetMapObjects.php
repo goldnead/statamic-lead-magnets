@@ -218,6 +218,173 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     }
 
     /**
+     * The pairs this addon can draw by hand: an access lead magnet unlocks a course.
+     *
+     * @return list<array{from_type:string,to_type:string,kind:string,label:string}>
+     */
+    public function connectionRules(): array
+    {
+        return [[
+            'from_type' => self::TYPE,
+            'to_type' => 'course',
+            'kind' => 'unlocks',
+            'label' => __('lead-magnets::resources.map_connect_unlocks'),
+        ]];
+    }
+
+    /**
+     * Both ends: the permission that guards editing a lead magnet, and the one
+     * that lets the user edit the course entry. The latter is Statamic's own
+     * `edit {collection} entries` for the courses collection, named by the
+     * same config key the courses addon reads (`courses.collections.courses`).
+     */
+    public function connectionAuthorized(array $c, $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $collection = (string) config('courses.collections.courses', 'courses');
+
+        return (bool) $user->can('manage lead magnets') && (bool) $user->can('edit '.$collection.' entries');
+    }
+
+    /** @return array{consequence:string,before:string,after:string} */
+    public function connectionPreview(array $c, string $action): array
+    {
+        [$resource, $product, $names] = $this->connectionTarget($c, $action);
+
+        $empty = __('lead-magnets::resources.map_connect_empty');
+
+        return $action === 'connect'
+            ? [
+                'consequence' => __('lead-magnets::resources.map_connect_consequence', $names),
+                'before' => $empty,
+                'after' => $product,
+            ]
+            : [
+                'consequence' => __('lead-magnets::resources.map_disconnect_consequence', $names),
+                'before' => $product,
+                'after' => $empty,
+            ];
+    }
+
+    /** @return array{before:string,after:string} */
+    public function connect(array $c): array
+    {
+        [$resource, $product] = $this->connectionTarget($c, 'connect');
+
+        // Compare and set: only an empty field is written, and the check is
+        // part of the UPDATE, so a change since connectionTarget() read it wins.
+        $this->writeIfStill($resource, "TRIM(COALESCE(access_product, '')) = ''", [], $product);
+
+        return ['before' => __('lead-magnets::resources.map_connect_empty'), 'after' => $product];
+    }
+
+    /** @return array{before:string,after:string} */
+    public function disconnect(array $c): array
+    {
+        [$resource, $product] = $this->connectionTarget($c, 'disconnect');
+
+        $this->writeIfStill($resource, 'TRIM(access_product) = ?', [$product], null);
+
+        return ['before' => $product, 'after' => __('lead-magnets::resources.map_connect_empty')];
+    }
+
+    /**
+     * Writes `access_product` only while it still holds the value the check saw.
+     *
+     * @param  array<int, string>  $bindings
+     *
+     * @throws \DomainException when the field changed in the meantime
+     */
+    protected function writeIfStill(Resource $resource, string $condition, array $bindings, ?string $value): void
+    {
+        $changed = Resource::query()
+            ->whereKey($resource->getKey())
+            ->whereRaw($condition, $bindings)
+            ->update(['access_product' => $value, 'updated_at' => Carbon::now()]);
+
+        if ($changed !== 1) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_changed'));
+        }
+    }
+
+    /**
+     * Checks that the connection can be written now and returns what it needs.
+     *
+     * @param  array<string, string>  $c
+     * @return array{0: resource, 1: string, 2: array{magnet: string, course: string}}
+     *
+     * @throws \DomainException with a translated reason
+     */
+    protected function connectionTarget(array $c, string $action): array
+    {
+        if (! in_array($action, ['connect', 'disconnect'], true)) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_unknown_action'));
+        }
+
+        if (($c['from_type'] ?? null) !== self::TYPE || ($c['to_type'] ?? null) !== 'course' || ($c['kind'] ?? 'unlocks') !== 'unlocks') {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_unknown_pair'));
+        }
+
+        $resource = $this->resolve((string) ($c['from_id'] ?? ''));
+
+        if ($resource === null) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_magnet_missing'));
+        }
+
+        $registry = app(MapObjectRegistry::class);
+        $courseId = (string) ($c['to_id'] ?? '');
+        $course = $registry->lookup('course', $courseId)->object;
+
+        if ($course === null) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_course_missing'));
+        }
+
+        $magnetName = $resource->title !== '' ? (string) $resource->title : $this->idOf($resource);
+        $names = ['magnet' => $magnetName, 'course' => $course->label];
+
+        if (! $resource->isAccess()) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_not_access', $names));
+        }
+
+        $product = $this->productOfCourse($courseId);
+
+        if ($product === null) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_no_product', $names));
+        }
+
+        $current = trim((string) $resource->access_product);
+
+        if ($action === 'connect') {
+            if ($current === $product) {
+                throw new \DomainException(__('lead-magnets::resources.map_connect_already', $names));
+            }
+
+            if ($current !== '') {
+                throw new \DomainException(__('lead-magnets::resources.map_connect_occupied', $names + ['product' => $current]));
+            }
+        } elseif ($current !== $product) {
+            throw new \DomainException(__('lead-magnets::resources.map_connect_not_connected', $names));
+        }
+
+        return [$resource, $product, $names];
+    }
+
+    /** The product slug the courses addon says opens this course, or null. */
+    protected function productOfCourse(string $courseId): ?string
+    {
+        foreach ($this->coursesByProduct() as $product => $courses) {
+            if (in_array($courseId, $courses, true)) {
+                return (string) $product;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The handle, or the id for a resource that somehow has none.
      *
      * The handle column is required and unique, but the Control Panel derives it

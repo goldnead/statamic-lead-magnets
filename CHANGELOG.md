@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added: draw lead magnet -> course on the map (connections)
+
+- The map provider offers the pair lead magnet -> course (`unlocks`). Connecting writes the course's
+  product slug into the lead magnet's *Access product*; disconnecting clears it, only when it holds
+  exactly that slug. A lead magnet that is not of type access, a field already holding another product
+  and a course without a product slug are refused with a reason; nothing is ever overwritten.
+- Gated by `manage lead magnets`, the permission that guards editing a lead magnet. Duck-typed: no new
+  brand-context class is referenced, so the addon keeps working with brand-context ^1.18.
+
 ### Added: the course an access lead magnet opens (map)
 
 - A lead magnet of type access draws an edge "unlocks" to the course its *Access product* opens. The
