@@ -12,6 +12,8 @@ use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
 use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Gate;
+use Statamic\Facades\User;
 
 /*
  * The lead magnets as map objects for statamic-funnels.
@@ -211,24 +213,114 @@ it('details: facts with delivery type, requests in the period and the file as ta
         ->and((string) $this->map->metric('atmung', $period)->value)->toBe('2');
 });
 
-it('details: an access lead magnet names the course its product opens, with a link', function () {
+/** Stands in for the products addon: finds a product by slug and counts how often it is asked. */
+class DetailsFakeProductMapObjects implements ProvidesMapEdges, ProvidesMapObjects
+{
+    public static int $edgeCalls = 0;
+
+    public static int $findCalls = 0;
+
+    public function type(): string
+    {
+        return 'product';
+    }
+
+    public function typeLabel(): string
+    {
+        return 'Product';
+    }
+
+    public function objects(?string $query = null, int $limit = 50): array
+    {
+        return [];
+    }
+
+    public function find(string $id): ?MapObject
+    {
+        self::$findCalls++;
+
+        return $id === 'vokale-produkt' ? new MapObject('product', $id, 'Vokale Produkt', '/cp/produkt', true) : null;
+    }
+
+    public function metric(string $id, MapPeriod $period): ?MapMetric
+    {
+        return null;
+    }
+
+    public function edges(): iterable
+    {
+        self::$edgeCalls++;
+
+        return [];
+    }
+}
+
+it('details: an access lead magnet names the product it grants, with a link, from one lookup and no edges', function () {
+    DetailsFakeProductMapObjects::$edgeCalls = 0;
+    DetailsFakeProductMapObjects::$findCalls = 0;
+    app(MapObjectRegistry::class)->register(DetailsFakeProductMapObjects::class);
     app(MapObjectRegistry::class)->register(DetailsFakeCourseMapObjects::class);
     mapResource('minikurs', 'Minikurs', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'vokale-produkt']);
 
     $blocks = $this->map->details('minikurs', MapPeriod::lastDays(30));
 
-    expect(detailRows($blocks))->toBe(['Delivery' => 'Access', 'Requests' => '0', 'Target' => 'Vokale Minikurs'])
-        ->and($blocks[0]['rows'][2]['href'])->toBe('/cp/kurs');
+    expect(detailRows($blocks))->toBe(['Delivery' => 'Access', 'Requests' => '0', 'Target' => 'Vokale Produkt'])
+        ->and($blocks[0]['rows'][2]['href'])->toBe('/cp/produkt')
+        ->and(DetailsFakeProductMapObjects::$findCalls)->toBe(1)
+        ->and(DetailsFakeProductMapObjects::$edgeCalls)->toBe(0);
+});
+
+it('details: an access product the registry does not know is shown as its slug', function () {
+    app(MapObjectRegistry::class)->register(DetailsFakeProductMapObjects::class);
+    mapResource('mitglied', 'Mitglied', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'mitgliedschaft']);
+
+    $blocks = $this->map->details('mitglied', MapPeriod::lastDays(30));
+
+    expect(detailRows($blocks)['Target'])->toBe('mitgliedschaft')
+        ->and($blocks[0]['rows'][2]['href'])->toBeNull();
+});
+
+it('details: falls back to the slug without a products provider', function () {
+    mapResource('mitglied', 'Mitglied', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'mitgliedschaft']);
+
+    expect(detailRows($this->map->details('mitglied', MapPeriod::lastDays(30)))['Target'])->toBe('mitgliedschaft');
 });
 
 it('details: omits the target row when there is no source for it', function () {
-    // A link has no file; an access product no course opens has no title.
+    // A link has no file; an access lead magnet with no product has nothing to show.
     mapResource('linkmagnet', 'Linkmagnet');
-    mapResource('mitglied', 'Mitglied', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => 'mitgliedschaft']);
+    mapResource('leer', 'Leer', true, Resource::TYPE_ACCESS)->update(['link_url' => null, 'access_product' => null]);
 
     expect(detailRows($this->map->details('linkmagnet', MapPeriod::lastDays(30))))->toBe(['Delivery' => 'Link', 'Requests' => '0'])
-        ->and(detailRows($this->map->details('mitglied', MapPeriod::lastDays(30))))->toBe(['Delivery' => 'Access', 'Requests' => '0'])
+        ->and(detailRows($this->map->details('leer', MapPeriod::lastDays(30))))->toBe(['Delivery' => 'Access', 'Requests' => '0'])
         ->and($this->map->details('gibt-es-nicht', MapPeriod::lastDays(30)))->toBeNull();
+});
+
+it('detailsAuthorized: a user who may manage lead magnets is allowed', function () {
+    $user = User::make()->email('panel@example.test');
+    $user->save();
+
+    Gate::before(fn ($u, $ability) => $ability === 'manage lead magnets');
+
+    expect($this->map->detailsAuthorized('atmung', $user))->toBeTrue();
+});
+
+it('detailsAuthorized: fail closed without the permission and without a user', function () {
+    $user = User::make()->email('panel3@example.test');
+    $user->save();
+
+    Gate::before(fn ($u, $ability) => false);
+
+    expect($this->map->detailsAuthorized('atmung', $user))->toBeFalse()
+        ->and($this->map->detailsAuthorized('atmung', null))->toBeFalse();
+});
+
+it('detailsAuthorized: the registry asks it and refuses without a permitted user', function () {
+    $user = User::make()->email('panel2@example.test');
+    $user->save();
+    Gate::before(fn ($u, $ability) => false);
+
+    expect(app(MapObjectRegistry::class)->detailsAllowed('lead_magnet', 'atmung', $user))->toBeFalse();
 });
 
 it('is registered in the map registry after boot', function () {

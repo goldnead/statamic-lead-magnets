@@ -122,6 +122,16 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     }
 
     /**
+     * Who may open the detail panel (brand-context 1.20 asks before details()):
+     * the permission that guards lead magnets in the Control Panel. Without a
+     * user, no.
+     */
+    public function detailsAuthorized(string $id, $user): bool
+    {
+        return $user !== null && (bool) $user->can('manage lead magnets');
+    }
+
+    /**
      * The grants requested in the period: the figure on the card and in the
      * detail panel, counted here and nowhere else.
      */
@@ -148,9 +158,9 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
     }
 
     /**
-     * The "Target" row: the titles of the courses an access product opens
-     * (asked through the map registry, as the unlock edges are), or the names
-     * of the files. A link, or a source that yields nothing, gives no row.
+     * The "Target" row: the product an access lead magnet grants (one registry
+     * lookup, the slug as text when it finds nothing), or the names of the
+     * files. A link, or a source that yields nothing, gives no row.
      *
      * @return list<array{label: string, value: string, href: ?string}>
      */
@@ -159,22 +169,21 @@ class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
         $label = __('lead-magnets::resources.map_detail_target');
 
         if ($resource->isAccess()) {
-            $product = trim((string) $resource->access_product);
-            $slugs = $product === '' ? [] : ($this->coursesByProduct()[$product] ?? []);
-            $registry = app(MapObjectRegistry::class);
-            $titles = [];
-            $href = null;
+            $slug = trim((string) $resource->access_product);
 
-            foreach ($slugs as $slug) {
-                $course = $registry->lookup('course', $slug)->object;
-
-                if ($course !== null) {
-                    $titles[] = $course->label;
-                    $href ??= $course->cpUrl;
-                }
+            if ($slug === '') {
+                return [];
             }
 
-            return $titles === [] ? [] : [['label' => $label, 'value' => Str::limit(implode(', ', $titles), 120), 'href' => count($titles) === 1 ? $href : null]];
+            // One lookup, no edges of any addon: the course behind the product
+            // is already a connection in the panel.
+            $product = app(MapObjectRegistry::class)->lookup('product', $slug)->object;
+
+            return [[
+                'label' => $label,
+                'value' => Str::limit($product !== null ? $product->label : $slug, 120),
+                'href' => $product?->cpUrl,
+            ]];
         }
 
         $names = array_values(array_filter(array_map(
