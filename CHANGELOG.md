@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.16.0 — 2026-10-21
+
 ### Added: dry run of a lead magnet (map)
 
 - A lead magnet can be simulated on the funnels map: a request starts the path, and the answer lists what it would do,
