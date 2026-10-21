@@ -403,11 +403,14 @@ class DeliveryService
             $groups = array_values($groups);
         }
 
+        /** @var view-string $fileGroupsView */
+        $fileGroupsView = 'lead-magnets::partials.file-groups';
+
         $variables = $this->variables($grant) + ($kind === 'confirmation'
             ? ['confirm_url' => '#', 'list_consent_text' => (string) ($grant->listConsent()['text'] ?? '')]
             : ['download_url' => '#']
                 + ($resource->isAccess() ? ['access_url' => '#'] : [])
-                + ($groups === null ? ['file_list' => ''] : ['file_list' => app('view')->make('lead-magnets::partials.file-groups', ['groups' => $groups])->render()]));
+                + ($groups === null ? ['file_list' => ''] : ['file_list' => app('view')->make($fileGroupsView, ['groups' => $groups])->render()]));
 
         // The variables the real mail has, after listeners have had their say; a listener that cannot answer for an
         // address that does not exist is no reason to lose the preview.
