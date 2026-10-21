@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.18.0 — 2026-10-21
+
 ### Added: the mails of a lead magnet in the Probelauf
 
 The confirmation and the delivery mail of a lead magnet have a preview in the dry run of the map (`mailPreview()` on the map provider;
