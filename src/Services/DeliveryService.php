@@ -14,6 +14,7 @@ use Goldnead\LeadMagnets\Integrations\UnresolvedPlaceholders;
 use Goldnead\LeadMagnets\Mail\ConfirmationMail;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -357,6 +358,54 @@ class DeliveryService
         $this->markDelivered($grant, 'mail');
 
         return true;
+    }
+
+    /**
+     * One of the two mails of a resource as it would read for a person, for the dry run of the map. Rendered the
+     * way the real mail is (the template the editor wrote, else the addon's own view) and nothing else: no grant
+     * row, no signed link (the address in it is `#`), no suppression check, no mail, no event. A template that
+     * names a placeholder this mail does not carry, or that is gone, has no preview: null.
+     *
+     * @param  string  $kind  `confirmation` or `delivery`
+     * @return array{subject: string, html: string, from: ?string}|null
+     */
+    public function previewMail(Resource $resource, string $kind, string $email): ?array
+    {
+        if (! in_array($kind, ['confirmation', 'delivery'], true)) {
+            return null;
+        }
+
+        // A grant that is only held in memory: the views read the resource and the address from it.
+        $grant = (new Grant)->forceFill(['email' => $email]);
+        $grant->setRelation('resource', $resource);
+
+        $variables = $this->variables($grant) + ($kind === 'confirmation'
+            ? ['confirm_url' => '#', 'list_consent_text' => '']
+            : ['download_url' => '#', 'access_url' => '#', 'file_list' => '']);
+
+        try {
+            $rendered = $this->templates->render((string) $resource->mailTemplate($kind), $variables);
+        } catch (UnresolvedPlaceholders) {
+            return null;
+        }
+
+        if ($rendered !== null) {
+            return [
+                'subject' => (string) ($rendered['subject'] ?? __('lead-magnets::mail.'.$kind.'_subject'.($kind === 'delivery' && $resource->isAccess() ? '_access' : ''), ['title' => $resource->title])),
+                'html' => $rendered['html'],
+                'from' => null,
+            ];
+        }
+
+        // No template, or none that resolves: the mail the addon sends on its own.
+        $mailable = $kind === 'confirmation' ? new ConfirmationMail($grant, '#') : new DeliveryMail($grant, '#');
+        $built = $mailable->build();
+
+        return [
+            'subject' => (string) $built->subject,
+            'html' => $built->render(),
+            'from' => null,
+        ];
     }
 
     /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */

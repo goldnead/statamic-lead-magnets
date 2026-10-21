@@ -8,6 +8,7 @@ use Goldnead\BrandContext\Simulation\SimEvent;
 use Goldnead\BrandContext\Simulation\SimPerson;
 use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\Models\Resource;
+use Goldnead\LeadMagnets\Services\DeliveryService;
 
 /**
  * What a lead magnet would do in a dry run. Part of {@see LeadMagnetMapObjects}: the
@@ -49,7 +50,7 @@ trait SimulatesLeadMagnet
         }
 
         if ($person->isKnown() && $person->hasAccess((string) $resource->handle)) {
-            return [Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_again_detail'))];
+            return [Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_again_detail'), 0, ['kind' => 'delivery'])];
         }
 
         $line = [];
@@ -58,6 +59,8 @@ trait SimulatesLeadMagnet
             $line[] = Effect::mail(
                 __('lead-magnets::mail.confirmation_subject', ['title' => $resource->title]),
                 __('lead-magnets::resources.sim_confirmation_detail'),
+                0,
+                ['kind' => 'confirmation'],
             );
             $line[] = new Effect(
                 Effect::WAIT,
@@ -88,16 +91,38 @@ trait SimulatesLeadMagnet
             );
 
             if (! $takesOver) {
-                $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'));
+                $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'), 0, ['kind' => 'delivery']);
             }
         } else {
-            $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'));
+            $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'), 0, ['kind' => 'delivery']);
         }
 
         return Effect::chain($line, [Effect::emit(
             new SimEvent(SimEvent::GRANTED, via: ['triggers', 'unlocks'], data: ['slug' => (string) $resource->handle]),
             __('lead-magnets::resources.sim_granted'),
         )]);
+    }
+
+    /**
+     * One of the two mails of this lead magnet as it would read for the person: the map asks for the mail an
+     * effect names (`meta.kind`: `confirmation` or `delivery`). Rendered by the delivery service like the real
+     * mail and with nothing else: no grant, no signed link, no send.
+     *
+     * @param  array<string, mixed>  $meta
+     * @return array{subject: string, html: string, from: ?string}|null
+     */
+    public function mailPreview(string $id, array $meta, SimPerson $person): ?array
+    {
+        $resource = $this->resolve($id);
+        $kind = $meta['kind'] ?? null;
+
+        if ($resource === null || ! in_array($kind, ['confirmation', 'delivery'], true)) {
+            return null;
+        }
+
+        $email = $person->isKnown() ? ($person->trait('contact.email') ?? $person->trait('subscriber.email')) : null;
+
+        return app(DeliveryService::class)->previewMail($resource, (string) $kind, is_string($email) && $email !== '' ? $email : 'max@example.com');
     }
 
     /** The standard delivery subject (the e-mail templates addon may replace it; not read here). */
