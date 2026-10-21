@@ -97,6 +97,39 @@ it('renders the addons own mail when the editor wrote no template', function () 
         ->and($delivery['html'])->toContain(__('lead-magnets::mail.delivery_greeting'));
 });
 
+it('carries the disclosure of a coupled list in the confirmation, like the real one', function () {
+    mpResource([
+        'list_via_confirmation' => true,
+        'marketing_list' => 'newsletter',
+        'list_consent_text' => 'Ich möchte auch den Newsletter.',
+    ]);
+
+    expect(mpPreview('confirmation')['html'])->toContain('Ich möchte auch den Newsletter.');
+});
+
+it('lists the files of a resource with several files, each with an inert address', function () {
+    mpResource(['files' => [
+        ['key' => 'aaaa1111', 'path' => 'a.pdf', 'label' => 'Teil A', 'group' => null],
+        ['key' => 'bbbb2222', 'path' => 'b.pdf', 'label' => 'Teil B', 'group' => null],
+    ]]);
+
+    $html = mpPreview('delivery')['html'];
+
+    expect($html)->toContain('Teil A')->toContain('Teil B')
+        ->and($html)->not->toMatch('/expires=|signature=/');
+});
+
+it('knows the access address only for an access resource, as the real delivery does', function () {
+    mpResource(['delivery_template' => 'lieferung']);
+    FakeEmailTemplatesFacade::$templates['lieferung'] = new FakeEmailTemplate('Hier: {{ access_url }}', 'S');
+
+    expect(mpPreview('delivery'))->toBeNull();
+
+    Resource::query()->update(['delivery_type' => Resource::TYPE_ACCESS, 'access_product' => 'kurs', 'file_path' => null]);
+
+    expect(mpPreview('delivery')['html'])->toContain('Hier: #');
+});
+
 it('has no mail for a kind it does not know, a magnet that is gone, or a template with a hole it cannot fill', function () {
     mpResource(['confirmation_template' => 'kaputt']);
     FakeEmailTemplatesFacade::$templates['kaputt'] = new FakeEmailTemplate('Hi {{ gibt_es_nicht }}');

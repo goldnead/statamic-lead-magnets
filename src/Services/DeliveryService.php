@@ -375,13 +375,47 @@ class DeliveryService
             return null;
         }
 
-        // A grant that is only held in memory: the views read the resource and the address from it.
+        // A grant that is only held in memory: the views read the resource and the address from it. It carries the
+        // disclosure of a coupled list like the real one (GrantService::withListConsent), so the sentence is in the mail.
         $grant = (new Grant)->forceFill(['email' => $email]);
         $grant->setRelation('resource', $resource);
 
+        if ($kind === 'confirmation' && $resource->couplesListToConfirmation()) {
+            $grant->forceFill(['meta' => ['list_consent' => [
+                'list' => (string) $resource->marketing_list,
+                'text' => (string) $resource->listConsentText(),
+                'source' => 'lead-magnets:'.$resource->handle,
+            ]]]);
+        }
+
+        // A resource with several files shows them as a list, with an inert address each (as deliver() does with signed ones).
+        $groups = null;
+
+        if ($kind === 'delivery' && ! $resource->isAccess() && $resource->hasMultipleFiles()) {
+            $groups = [];
+
+            foreach ($resource->fileList() as $file) {
+                $index = $file['group'] ?? "\0";
+                $groups[$index] ??= ['name' => $file['group'], 'files' => []];
+                $groups[$index]['files'][] = ['key' => $file['key'], 'label' => $file['label'], 'url' => '#'];
+            }
+
+            $groups = array_values($groups);
+        }
+
         $variables = $this->variables($grant) + ($kind === 'confirmation'
-            ? ['confirm_url' => '#', 'list_consent_text' => '']
-            : ['download_url' => '#', 'access_url' => '#', 'file_list' => '']);
+            ? ['confirm_url' => '#', 'list_consent_text' => (string) ($grant->listConsent()['text'] ?? '')]
+            : ['download_url' => '#']
+                + ($resource->isAccess() ? ['access_url' => '#'] : [])
+                + ($groups === null ? ['file_list' => ''] : ['file_list' => app('view')->make('lead-magnets::partials.file-groups', ['groups' => $groups])->render()]));
+
+        // The variables the real mail has, after listeners have had their say; a listener that cannot answer for an
+        // address that does not exist is no reason to lose the preview.
+        try {
+            $variables = $this->resolveVariables($grant, $kind) + $variables;
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         try {
             $rendered = $this->templates->render((string) $resource->mailTemplate($kind), $variables);
@@ -389,21 +423,16 @@ class DeliveryService
             return null;
         }
 
-        if ($rendered !== null) {
-            return [
-                'subject' => (string) ($rendered['subject'] ?? __('lead-magnets::mail.'.$kind.'_subject'.($kind === 'delivery' && $resource->isAccess() ? '_access' : ''), ['title' => $resource->title])),
-                'html' => $rendered['html'],
-                'from' => null,
-            ];
-        }
-
-        // No template, or none that resolves: the mail the addon sends on its own.
-        $mailable = $kind === 'confirmation' ? new ConfirmationMail($grant, '#') : new DeliveryMail($grant, '#');
+        // The mailable says the subject (the template's, else the addon's own) and, without a template, the HTML: one
+        // place for both, the one the real send uses.
+        $mailable = $kind === 'confirmation'
+            ? new ConfirmationMail($grant, '#', $rendered['html'] ?? null, $rendered['subject'] ?? null)
+            : new DeliveryMail($grant, '#', $rendered['html'] ?? null, $rendered['subject'] ?? null, $groups);
         $built = $mailable->build();
 
         return [
             'subject' => (string) $built->subject,
-            'html' => $built->render(),
+            'html' => $rendered['html'] ?? $built->render(),
             'from' => null,
         ];
     }
