@@ -316,6 +316,10 @@ it('detailsAuthorized: fail closed without the permission and without a user', f
 });
 
 it('detailsAuthorized: the registry asks it and refuses without a permitted user', function () {
+    if (! method_exists(MapObjectRegistry::class, 'detailsAllowed')) {
+        $this->markTestSkipped('needs statamic-brand-context 1.20 (MapObjectRegistry::detailsAllowed())');
+    }
+
     $user = User::make()->email('panel2@example.test');
     $user->save();
     Gate::before(fn ($u, $ability) => false);
