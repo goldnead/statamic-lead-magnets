@@ -14,6 +14,7 @@ use Goldnead\LeadMagnets\Integrations\UnresolvedPlaceholders;
 use Goldnead\LeadMagnets\Mail\ConfirmationMail;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Models\Resource;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -357,6 +358,86 @@ class DeliveryService
         $this->markDelivered($grant, 'mail');
 
         return true;
+    }
+
+    /**
+     * One of the two mails of a resource as it would read for a person, for the dry run of the map. Rendered the
+     * way the real mail is (the template the editor wrote, else the addon's own view) and nothing else: no grant
+     * row, no signed link (the address in it is `#`), no suppression check, no mail, no event. A template that
+     * names a placeholder this mail does not carry, or that is gone, has no preview: null.
+     *
+     * @param  string  $kind  `confirmation` or `delivery`
+     * @return array{subject: string, html: string, from: ?string}|null
+     */
+    public function previewMail(Resource $resource, string $kind, string $email): ?array
+    {
+        if (! in_array($kind, ['confirmation', 'delivery'], true)) {
+            return null;
+        }
+
+        // A grant that is only held in memory: the views read the resource and the address from it. It carries the
+        // disclosure of a coupled list like the real one (GrantService::withListConsent), so the sentence is in the mail.
+        $grant = (new Grant)->forceFill(['email' => $email]);
+        $grant->setRelation('resource', $resource);
+
+        if ($kind === 'confirmation' && $resource->couplesListToConfirmation()) {
+            $grant->forceFill(['meta' => ['list_consent' => [
+                'list' => (string) $resource->marketing_list,
+                'text' => (string) $resource->listConsentText(),
+                'source' => 'lead-magnets:'.$resource->handle,
+            ]]]);
+        }
+
+        // A resource with several files shows them as a list, with an inert address each (as deliver() does with signed ones).
+        $groups = null;
+
+        if ($kind === 'delivery' && ! $resource->isAccess() && $resource->hasMultipleFiles()) {
+            $groups = [];
+
+            foreach ($resource->fileList() as $file) {
+                $index = $file['group'] ?? "\0";
+                $groups[$index] ??= ['name' => $file['group'], 'files' => []];
+                $groups[$index]['files'][] = ['key' => $file['key'], 'label' => $file['label'], 'url' => '#'];
+            }
+
+            $groups = array_values($groups);
+        }
+
+        /** @var view-string $fileGroupsView */
+        $fileGroupsView = 'lead-magnets::partials.file-groups';
+
+        $variables = $this->variables($grant) + ($kind === 'confirmation'
+            ? ['confirm_url' => '#', 'list_consent_text' => (string) ($grant->listConsent()['text'] ?? '')]
+            : ['download_url' => '#']
+                + ($resource->isAccess() ? ['access_url' => '#'] : [])
+                + ($groups === null ? ['file_list' => ''] : ['file_list' => app('view')->make($fileGroupsView, ['groups' => $groups])->render()]));
+
+        // The variables the real mail has, after listeners have had their say; a listener that cannot answer for an
+        // address that does not exist is no reason to lose the preview.
+        try {
+            $variables = $this->resolveVariables($grant, $kind) + $variables;
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
+            $rendered = $this->templates->render((string) $resource->mailTemplate($kind), $variables);
+        } catch (UnresolvedPlaceholders) {
+            return null;
+        }
+
+        // The mailable says the subject (the template's, else the addon's own) and, without a template, the HTML: one
+        // place for both, the one the real send uses.
+        $mailable = $kind === 'confirmation'
+            ? new ConfirmationMail($grant, '#', $rendered['html'] ?? null, $rendered['subject'] ?? null)
+            : new DeliveryMail($grant, '#', $rendered['html'] ?? null, $rendered['subject'] ?? null, $groups);
+        $built = $mailable->build();
+
+        return [
+            'subject' => (string) $built->subject,
+            'html' => $rendered['html'] ?? $built->render(),
+            'from' => null,
+        ];
     }
 
     /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */
