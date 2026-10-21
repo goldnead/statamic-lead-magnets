@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added: funnels map detail panel
+
+- A lead magnet card opens with the delivery type, the requests in the period (the same count the card
+  shows, now one method for both) and the target: the course an access product opens, or the file name(s).
+  A row without a source is left out. Read only. For an access lead magnet the target is the product
+  (one lookup, the slug as text if it is unknown); the course behind it is a connection in the panel,
+  and the panel computes no edges. Only users with `manage lead magnets` may open it
+  (`detailsAuthorized()`). The panel needs statamic-brand-context 1.20 (permission check); older
+  versions leave it empty.
+
 ## 3.14.0 — 2026-10-20
 
 ### Added: draw lead magnet -> course on the map (connections)
