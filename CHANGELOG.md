@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.15.0 — 2026-10-21
+
 ### Added: funnels map detail panel
 
 - A lead magnet card opens with the delivery type, the requests in the period (the same count the card
