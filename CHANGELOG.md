@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.17.0 — 2026-10-21
+
 ### Changed: the access line of the dry run names the access
 
 The dry run's access line of an access lead magnet carries the product slug it grants (`meta.slug`), so the steps after it can ask whether
