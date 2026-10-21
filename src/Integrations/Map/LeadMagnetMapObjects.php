@@ -32,6 +32,8 @@ use Illuminate\Support\Str;
  */
 class LeadMagnetMapObjects implements ProvidesMapEdges, ProvidesMapObjects
 {
+    use SimulatesLeadMagnet;
+
     public const TYPE = 'lead_magnet';
 
     /** Shared across instances: the registry resolves its own instance of this class. */
