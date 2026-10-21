@@ -64,4 +64,18 @@ return [
     'map_connect_occupied' => '„:magnet“ vergibt schon das Produkt „:product“. Erst das lösen.',
     'map_connect_not_connected' => '„:magnet“ schaltet „:course“ nicht frei, es gibt nichts zu lösen.',
     'map_connect_changed' => 'Dieser Lead-Magnet wurde inzwischen geändert. Es wurde nichts geschrieben, lade die Landkarte neu und versuche es noch einmal.',
+
+    'sim_missing' => 'Diesen Lead-Magneten gibt es nicht.',
+    'sim_unpublished' => 'Nicht veröffentlicht: das Formular antwortet mit 404.',
+    'sim_confirmation' => 'Bestätigungsmail',
+    'sim_confirmation_detail' => 'Mit dem Link, der die Anfrage bestätigt.',
+    'sim_wait_confirm' => 'Wartet auf die Bestätigung',
+    'sim_wait_confirm_detail' => 'Bis die Person den Link in der Bestätigungsmail anklickt. Wie lange das dauert, ist nicht bekannt.',
+    'sim_delivery' => 'Zustellmail',
+    'sim_delivery_detail' => 'Mit dem persönlichen Link.',
+    'sim_delivery_again' => 'Zustellmail erneut',
+    'sim_delivery_again_detail' => 'Die Person hat den Zugang schon. Es kommt keine Bestätigungsmail, nur die Zustellmail.',
+    'sim_access' => 'Zugang freischalten',
+    'sim_access_detail' => 'Das Produkt „:product“ wird vergeben.',
+    'sim_granted' => 'Zugang gewährt',
 ];

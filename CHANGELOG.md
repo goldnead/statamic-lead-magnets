@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added: dry run of a lead magnet (map)
+
+- A lead magnet can be simulated on the funnels map: a request starts the path, and the answer lists what it would do,
+  the confirmation mail and wait, the delivery mail, the access and the course it unlocks. Nothing is sent, queued or
+  granted. A known person with the access only gets the delivery mail again. Unpublished or missing magnets stop or
+  answer unknown. Only users with `manage lead magnets` may open it (`simulationAuthorized()`). The delivery mail
+  subject is the standard one; a subject set in an e-mail template is not shown.
+
 ## 3.15.0 — 2026-10-21
 
 ### Added: funnels map detail panel
