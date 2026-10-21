@@ -131,7 +131,9 @@ it('react: an access lead magnet names the product it grants', function () {
     $access = simLine(simReact('atmung', SimPerson::unknown()))[0];
 
     expect($access->kind)->toBe(Effect::ACCESS)
-        ->and($access->detail)->toBe(__('lead-magnets::resources.sim_access_detail', ['product' => 'kurs-atmung']));
+        ->and($access->detail)->toBe(__('lead-magnets::resources.sim_access_detail', ['product' => 'kurs-atmung']))
+        // The slug is the access she now holds: the next steps of her way can ask for it.
+        ->and($access->meta)->toBe(['slug' => 'kurs-atmung']);
 });
 
 /** The series (an automation) the access magnet hands the delivery to; the bridge answers for it. */

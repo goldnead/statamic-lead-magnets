@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed: the access line of the dry run names the access
+
+The dry run's access line of an access lead magnet carries the product slug it grants (`meta.slug`), so the steps after it can ask whether
+the person holds it and the funnels map can list it in the person's account.
+
 ## 3.16.0 — 2026-10-21
 
 ### Added: dry run of a lead magnet (map)

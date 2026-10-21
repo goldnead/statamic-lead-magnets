@@ -83,6 +83,8 @@ trait SimulatesLeadMagnet
                 __('lead-magnets::resources.sim_access'),
                 __('lead-magnets::resources.sim_access_detail', ['product' => $product !== '' ? $product : __('lead-magnets::resources.map_connect_empty')])
                     .($takesOver ? ' '.__('lead-magnets::resources.sim_series_takes_over', ['series' => $series]) : ''),
+                // The access she now holds, for the steps after this one (and for the account view of the dry run).
+                $product !== '' ? ['slug' => $product] : [],
             );
 
             if (! $takesOver) {
