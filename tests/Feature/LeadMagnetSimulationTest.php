@@ -4,6 +4,7 @@ use Carbon\CarbonImmutable;
 use Goldnead\BrandContext\Simulation\Effect;
 use Goldnead\BrandContext\Simulation\SimEvent;
 use Goldnead\BrandContext\Simulation\SimPerson;
+use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\Integrations\Map\LeadMagnetMapObjects;
 use Goldnead\LeadMagnets\Models\Resource;
 use Illuminate\Database\Events\QueryExecuted;
@@ -118,19 +119,55 @@ it('react: the straight line for confirmation and delivery type', function (bool
 })->with([
     'Bestätigung, Datei' => [true, Resource::TYPE_FILE, ['mail', 'wait', 'mail', 'emit']],
     'Bestätigung, Link' => [true, Resource::TYPE_LINK, ['mail', 'wait', 'mail', 'emit']],
-    'Bestätigung, Zugang' => [true, Resource::TYPE_ACCESS, ['mail', 'wait', 'mail', 'access', 'emit']],
+    'Bestätigung, Zugang' => [true, Resource::TYPE_ACCESS, ['mail', 'wait', 'access', 'mail', 'emit']],
     'ohne Bestätigung, Datei' => [false, Resource::TYPE_FILE, ['mail', 'emit']],
     'ohne Bestätigung, Link' => [false, Resource::TYPE_LINK, ['mail', 'emit']],
-    'ohne Bestätigung, Zugang' => [false, Resource::TYPE_ACCESS, ['mail', 'access', 'emit']],
+    'ohne Bestätigung, Zugang' => [false, Resource::TYPE_ACCESS, ['access', 'mail', 'emit']],
 ]);
 
 it('react: an access lead magnet names the product it grants', function () {
     simResource('atmung', Resource::TYPE_ACCESS, false);
 
-    $access = simLine(simReact('atmung', SimPerson::unknown()))[1];
+    $access = simLine(simReact('atmung', SimPerson::unknown()))[0];
 
     expect($access->kind)->toBe(Effect::ACCESS)
         ->and($access->detail)->toBe(__('lead-magnets::resources.sim_access_detail', ['product' => 'kurs-atmung']));
+});
+
+/** The series (an automation) the access magnet hands the delivery to; the bridge answers for it. */
+function simSeries(string $handle, ?bool $live): void
+{
+    app()->instance(AutomationsBridge::class, new class($handle, $live) extends AutomationsBridge
+    {
+        public function __construct(private string $handle, private ?bool $live) {}
+
+        public function isLive(string $handle): ?bool
+        {
+            return $handle === $this->handle ? $this->live : null;
+        }
+    });
+}
+
+it('react: access is granted before the mail that links to it', function () {
+    simResource('atmung', Resource::TYPE_ACCESS, false);
+
+    expect(simKinds(simReact('atmung', SimPerson::unknown())))->toBe(['access', 'mail', 'emit']);
+});
+
+it('react: a live series takes the delivery over, a switched off one does not, and one this person has run does not', function () {
+    $resource = simResource('atmung', Resource::TYPE_ACCESS, false);
+    $resource->forceFill(['delivery_series' => 'willkommen'])->save();
+
+    simSeries('willkommen', true);
+    $effects = simReact('atmung', SimPerson::unknown());
+
+    expect(simKinds($effects))->toBe(['access', 'emit'])
+        ->and($effects[0]->detail)->toContain('willkommen');
+
+    expect(simKinds(simReact('atmung', SimPerson::known([], [], ['willkommen']))))->toBe(['access', 'mail', 'emit']);
+
+    simSeries('willkommen', false);
+    expect(simKinds(simReact('atmung', SimPerson::unknown())))->toBe(['access', 'mail', 'emit']);
 });
 
 it('react: a known person who holds the access gets only the delivery mail again', function () {
@@ -212,6 +249,16 @@ it('simulationAuthorized: without a user, no', function () {
     simResource('atmung', Resource::TYPE_FILE, true);
 
     expect(app(LeadMagnetMapObjects::class)->simulationAuthorized('atmung', null))->toBeFalse();
+});
+
+it('simulationAuthorized: a user without the right, no, even with a right for something else', function () {
+    simResource('atmung', Resource::TYPE_FILE, true);
+    $user = User::make()->email('plain@example.test');
+    $user->save();
+
+    Gate::before(fn ($u, $ability) => $ability === 'view automations' ? true : null);
+
+    expect(app(LeadMagnetMapObjects::class)->simulationAuthorized('atmung', $user))->toBeFalse();
 });
 
 it('simulationAuthorized: with the permission to manage lead magnets, yes', function () {

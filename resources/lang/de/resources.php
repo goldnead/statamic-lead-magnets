@@ -77,5 +77,6 @@ return [
     'sim_delivery_again_detail' => 'Die Person hat den Zugang schon. Es kommt keine Bestätigungsmail, nur die Zustellmail.',
     'sim_access' => 'Zugang freischalten',
     'sim_access_detail' => 'Das Produkt „:product“ wird vergeben.',
+    'sim_series_takes_over' => 'Die Serie „:series“ übernimmt die Zustellung: Ihre erste Mail geht statt der Zustellmail raus.',
     'sim_granted' => 'Zugang gewährt',
 ];

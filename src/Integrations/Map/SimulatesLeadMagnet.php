@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Goldnead\BrandContext\Simulation\Effect;
 use Goldnead\BrandContext\Simulation\SimEvent;
 use Goldnead\BrandContext\Simulation\SimPerson;
+use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\Models\Resource;
 
 /**
@@ -67,15 +68,28 @@ trait SimulatesLeadMagnet
             );
         }
 
-        $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'));
-
         if ($resource->isAccess()) {
+            // Access first, the mail after it (DeliveryService::deliverAccess): the link in the mail needs the
+            // access to stand. A mail series that is switched on and that this person has not been through
+            // takes the delivery over: its first mail goes out instead of the delivery mail, and it starts
+            // from the access that was just granted (the connection to its automation does that).
             $product = trim((string) $resource->access_product);
+            $series = $resource->seriesHandle();
+            $takesOver = $series !== null
+                && app(AutomationsBridge::class)->isLive($series) === true
+                && ! ($person->isKnown() && $person->hasRun($series));
 
             $line[] = Effect::access(
                 __('lead-magnets::resources.sim_access'),
-                __('lead-magnets::resources.sim_access_detail', ['product' => $product !== '' ? $product : __('lead-magnets::resources.map_connect_empty')]),
+                __('lead-magnets::resources.sim_access_detail', ['product' => $product !== '' ? $product : __('lead-magnets::resources.map_connect_empty')])
+                    .($takesOver ? ' '.__('lead-magnets::resources.sim_series_takes_over', ['series' => $series]) : ''),
             );
+
+            if (! $takesOver) {
+                $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'));
+            }
+        } else {
+            $line[] = Effect::mail($this->deliverySubject($resource), __('lead-magnets::resources.sim_delivery_detail'));
         }
 
         return Effect::chain($line, [Effect::emit(

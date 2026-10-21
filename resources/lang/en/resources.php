@@ -77,5 +77,6 @@ return [
     'sim_delivery_again_detail' => 'The person already has access. No confirmation mail, only the delivery mail.',
     'sim_access' => 'Open access',
     'sim_access_detail' => 'The product “:product” is granted.',
+    'sim_series_takes_over' => 'The series “:series” takes over the delivery: its first mail goes out instead of the delivery mail.',
     'sim_granted' => 'Access granted',
 ];
