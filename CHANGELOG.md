@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added: the mails of a lead magnet in the Probelauf
+
+The confirmation and the delivery mail of a lead magnet have a preview in the dry run of the map (`mailPreview()` on the map provider;
+the mail effects name their kind in `meta.kind`). `DeliveryService::previewMail()` renders them like the real mail: the template the editor
+wrote, else the addon's own view; the disclosure of a coupled list, the file list and the placeholders listeners add are there. The address
+in the mail is `#`: no grant is stored, no link is signed, nothing is sent, and no suppression check or event of a send runs.
+
 ## 3.17.0 — 2026-10-21
 
 ### Changed: the access line of the dry run names the access
