@@ -140,6 +140,15 @@ it('leaves the delivery mail alone for a reader without an account', function ()
         ->and(autoLoginDeliveryMail())->toContain('http://localhost/account/courses/minikurs');
 });
 
+it('still sends the delivery mail with its plain links when the login link cannot be built', function (): void {
+    config(['auth.providers.users.model' => 'App\\DoesNotExist']);
+
+    autoLoginConfirmedGrant('reader@example.com');
+
+    expect(autoLoginDeliveryMail())->not->toContain('autologin')
+        ->and(autoLoginDeliveryMail())->toContain('http://localhost/account/courses/minikurs');
+});
+
 it('leaves the delivery mail alone when auto login is off', function (): void {
     config(['identity-contracts.autologin.enabled' => false]);
 

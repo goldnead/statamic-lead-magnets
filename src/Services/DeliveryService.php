@@ -335,8 +335,7 @@ class DeliveryService
         // The reader has just proven the address by confirming it, and has no
         // password. A link to a page behind the login logs them in instead of
         // ending on the login form. Optional: see autoLogin().
-        $autoLogin = $this->autoLogin();
-        $url = $autoLogin?->linkFor($grant->email, $url) ?? $url;
+        $url = $this->withAutoLogin(fn (AutoLogin $links): ?string => $links->linkFor($grant->email, $url)) ?? $url;
 
         try {
             $rendered = $this->templates->render(
@@ -351,8 +350,8 @@ class DeliveryService
 
         $html = $rendered['html'] ?? null;
 
-        if ($autoLogin !== null && is_string($html)) {
-            $html = $autoLogin->rewriteHtml($html, $grant->email);
+        if (is_string($html)) {
+            $html = $this->withAutoLogin(fn (AutoLogin $links): string => $links->rewriteHtml($html, $grant->email)) ?? $html;
         }
 
         $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
@@ -454,11 +453,14 @@ class DeliveryService
     }
 
     /**
-     * The shared login-link service of `goldnead/statamic-identity-contracts`
-     * (1.3 or later), or null when it is not installed or switched off. A
-     * `suggest`: the mail is the same without it.
+     * Runs `$use` with the shared login-link service of
+     * `goldnead/statamic-identity-contracts` (1.3 or later) and returns what it
+     * answers, or null when the package is not installed, switched off here or
+     * there, or throws. A `suggest`: the mail is the same without it.
+     *
+     * @param  callable(AutoLogin): ?string  $use
      */
-    protected function autoLogin(): ?AutoLogin
+    protected function withAutoLogin(callable $use): ?string
     {
         $class = '\\Goldnead\\IdentityContracts\\AutoLogin\\AutoLogin';
 
@@ -466,9 +468,17 @@ class DeliveryService
             return null;
         }
 
-        $service = app($class);
+        // A convenience for the reader must never cost the mail: whatever goes
+        // wrong in there, the mail goes out with the links it already had.
+        try {
+            $service = app($class);
 
-        return $service->enabled() ? $service : null;
+            return $service->enabled() ? $use($service) : null;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */
