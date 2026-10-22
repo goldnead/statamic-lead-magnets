@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added: the Probelauf can ask which freebies a map gives
+
+- `simulationFreebie($id)` on the map provider: for a lead magnet that gives access, the name of the grant (`access_product`, what a step that
+  asks "did she just unlock something" reads) and the title the reader knows it by; null for any other lead magnet. The Probelauf of a
+  funnel map offers these as "came through which freebie". Read only, no migration.
+
 ## 3.18.0 — 2026-10-21
 
 ### Added: the mails of a lead magnet in the Probelauf

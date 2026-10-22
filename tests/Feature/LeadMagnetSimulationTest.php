@@ -263,6 +263,23 @@ it('simulationAuthorized: a user without the right, no, even with a right for so
     expect(app(LeadMagnetMapObjects::class)->simulationAuthorized('atmung', $user))->toBeFalse();
 });
 
+it('simulationFreebie: names the access a person is given for an access lead magnet, by the title she knows', function () {
+    simResource('atmung', Resource::TYPE_ACCESS, true);
+
+    expect(app(LeadMagnetMapObjects::class)->simulationFreebie('atmung'))->toBe(['value' => 'kurs-atmung', 'label' => 'Atemübung']);
+});
+
+it('simulationFreebie: nothing for a lead magnet that gives no access, an access without a product, or one that is gone', function () {
+    simResource('datei', Resource::TYPE_FILE, true);
+    makeResource(['handle' => 'leer', 'title' => 'Leer', 'delivery_type' => Resource::TYPE_ACCESS, 'access_product' => '  ', 'requires_confirmation' => false, 'published' => true]);
+
+    $provider = app(LeadMagnetMapObjects::class);
+
+    expect($provider->simulationFreebie('datei'))->toBeNull()
+        ->and($provider->simulationFreebie('leer'))->toBeNull()
+        ->and($provider->simulationFreebie('gibt-es-nicht'))->toBeNull();
+});
+
 it('simulationAuthorized: with the permission to manage lead magnets, yes', function () {
     simResource('atmung', Resource::TYPE_FILE, true);
     $user = User::make()->email('sim@example.test');

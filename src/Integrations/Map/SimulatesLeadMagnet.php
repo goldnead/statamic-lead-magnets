@@ -36,6 +36,24 @@ trait SimulatesLeadMagnet
         return $this->detailsAuthorized($id, $user);
     }
 
+    /**
+     * The access a person is given through this lead magnet, as the name of the grant (what a step that asks "did she
+     * just unlock something" gets to read: its `product_slug`) and the title she knows it by. Null for a lead magnet
+     * that gives no access. The dry run offers these as "came through which freebie".
+     *
+     * @return array{value: string, label: string}|null
+     */
+    public function simulationFreebie(string $id): ?array
+    {
+        $resource = $this->resolve($id);
+
+        if ($resource === null || ! $resource->isAccess() || trim((string) $resource->access_product) === '') {
+            return null;
+        }
+
+        return ['value' => trim((string) $resource->access_product), 'label' => trim((string) $resource->title) !== '' ? trim((string) $resource->title) : (string) $resource->handle];
+    }
+
     /** @return list<Effect> */
     public function react(string $id, SimEvent $event, SimPerson $person, CarbonImmutable $at): array
     {
