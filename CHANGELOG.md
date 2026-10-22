@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.19.0 — 2026-10-22
+
 ### Added: the Probelauf can ask which freebies a map gives
 
 - `simulationFreebie($id)` on the map provider: for a lead magnet that gives access, the name of the grant (`access_product`, what a step that
