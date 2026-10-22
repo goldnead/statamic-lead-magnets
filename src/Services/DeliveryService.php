@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Services;
 
 use Carbon\CarbonImmutable;
 use Goldnead\Entitlements\Facades\Entitlements;
+use Goldnead\IdentityContracts\AutoLogin\AutoLogin;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
 use Goldnead\LeadMagnets\Events\DeliveryVariables;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
@@ -331,6 +332,12 @@ class DeliveryService
 
         $url = $accessUrl ?? url($resource->access_path ?: '/');
 
+        // The reader has just proven the address by confirming it, and has no
+        // password. A link to a page behind the login logs them in instead of
+        // ending on the login form. Optional: see autoLogin().
+        $autoLogin = $this->autoLogin();
+        $url = $autoLogin?->linkFor($grant->email, $url) ?? $url;
+
         try {
             $rendered = $this->templates->render(
                 (string) $resource->mailTemplate('delivery'),
@@ -342,10 +349,16 @@ class DeliveryService
             return false;
         }
 
+        $html = $rendered['html'] ?? null;
+
+        if ($autoLogin !== null && is_string($html)) {
+            $html = $autoLogin->rewriteHtml($html, $grant->email);
+        }
+
         $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
             $grant,
             $url,
-            $rendered['html'] ?? null,
+            $html,
             $rendered['subject'] ?? null,
         ));
 
@@ -438,6 +451,24 @@ class DeliveryService
             'html' => $rendered['html'] ?? $built->render(),
             'from' => null,
         ];
+    }
+
+    /**
+     * The shared login-link service of `goldnead/statamic-identity-contracts`
+     * (1.3 or later), or null when it is not installed or switched off. A
+     * `suggest`: the mail is the same without it.
+     */
+    protected function autoLogin(): ?AutoLogin
+    {
+        $class = '\\Goldnead\\IdentityContracts\\AutoLogin\\AutoLogin';
+
+        if (! config('lead-magnets.auto_login', true) || ! class_exists($class)) {
+            return null;
+        }
+
+        $service = app($class);
+
+        return $service->enabled() ? $service : null;
     }
 
     /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */

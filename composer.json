@@ -41,6 +41,7 @@
         "goldnead/statamic-leadhub": "Turns a request into a contact and writes the resource's tags onto it when the grant activates.",
         "goldnead/statamic-marketing": "Subscribes the confirmed address to a mailing list, and lends its double-opt-in wording to the confirmation mail.",
         "goldnead/statamic-email-templates": "Lets an editor author the confirmation and delivery mails in the Control Panel instead of overriding Blade views.",
+        "goldnead/statamic-identity-contracts": "^1.3 (links to a page behind the login in the delivery mail log the reader in; switched on there, with the paths to cover).",
         "goldnead/statamic-suppression": "Stops delivery to an address that has bounced or complained.",
         "goldnead/statamic-activity": "Records request, confirmation, delivery and download on the shared activity ledger."
     },

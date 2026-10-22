@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 3.20.0 — 2026-10-23
+
+### Added: the delivery mail of an access resource logs the reader in
+
+The sign-in link of an access resource's delivery mail pointed to a page behind the login, and a reader who had just confirmed the address and
+never set a password landed on the login form. With `goldnead/statamic-identity-contracts` 1.3 or later installed (a `suggest`) and its
+`identity-contracts.autologin` switched on, the `access_url` (and any other matching internal link of the rendered delivery mail) becomes a
+signed, expiring login link for a reader who has an account. `lead-magnets.auto_login` (default true) keeps this addon out of it. Nothing
+changes without the identity package or while its auto login is off.
+
 ## 3.19.0 — 2026-10-22
 
 ### Added: the Probelauf can ask which freebies a map gives
