@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Services;
 
 use Carbon\CarbonImmutable;
 use Goldnead\Entitlements\Facades\Entitlements;
+use Goldnead\IdentityContracts\AutoLogin\AutoLogin;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
 use Goldnead\LeadMagnets\Events\DeliveryVariables;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
@@ -331,6 +332,11 @@ class DeliveryService
 
         $url = $accessUrl ?? url($resource->access_path ?: '/');
 
+        // The reader has just proven the address by confirming it, and has no
+        // password. A link to a page behind the login logs them in instead of
+        // ending on the login form. Optional: see autoLogin().
+        $url = $this->withAutoLogin(fn (AutoLogin $links): ?string => $links->linkFor($grant->email, $url)) ?? $url;
+
         try {
             $rendered = $this->templates->render(
                 (string) $resource->mailTemplate('delivery'),
@@ -342,10 +348,16 @@ class DeliveryService
             return false;
         }
 
+        $html = $rendered['html'] ?? null;
+
+        if (is_string($html)) {
+            $html = $this->withAutoLogin(fn (AutoLogin $links): string => $links->rewriteHtml($html, $grant->email)) ?? $html;
+        }
+
         $sent = app(BrandMailer::class)->send(null, $grant->email, null, new DeliveryMail(
             $grant,
             $url,
-            $rendered['html'] ?? null,
+            $html,
             $rendered['subject'] ?? null,
         ));
 
@@ -438,6 +450,35 @@ class DeliveryService
             'html' => $rendered['html'] ?? $built->render(),
             'from' => null,
         ];
+    }
+
+    /**
+     * Runs `$use` with the shared login-link service of
+     * `goldnead/statamic-identity-contracts` (1.3 or later) and returns what it
+     * answers, or null when the package is not installed, switched off here or
+     * there, or throws. A `suggest`: the mail is the same without it.
+     *
+     * @param  callable(AutoLogin): ?string  $use
+     */
+    protected function withAutoLogin(callable $use): ?string
+    {
+        $class = '\\Goldnead\\IdentityContracts\\AutoLogin\\AutoLogin';
+
+        if (! config('lead-magnets.auto_login', true) || ! class_exists($class)) {
+            return null;
+        }
+
+        // A convenience for the reader must never cost the mail: whatever goes
+        // wrong in there, the mail goes out with the links it already had.
+        try {
+            $service = app($class);
+
+            return $service->enabled() ? $use($service) : null;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /** Stamp the delivery on the grant and announce it. `$how` is `mail` or `series`. */
