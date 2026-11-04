@@ -3,10 +3,12 @@
 use Goldnead\Entitlements\Support\SubjectReference;
 use Goldnead\IdentityContracts\AutoLogin\AutoLogin;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
+use Goldnead\LeadMagnets\Contracts\ProvidesAccessStart;
 use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Models\Resource;
+use Goldnead\LeadMagnets\Services\AccessStartLink;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeEmailTemplate;
 use Goldnead\LeadMagnets\Tests\Fixtures\FakeEmailTemplatesFacade;
 use Goldnead\LeadMagnets\Tests\Fixtures\SiblingStubs;
@@ -155,4 +157,94 @@ it('leaves the delivery mail alone when auto login is off', function (): void {
     autoLoginConfirmedGrant('reader@example.com');
 
     expect(autoLoginDeliveryMail())->not->toContain('autologin');
+});
+
+/**
+ * The confirmed page of an access resource: a button that opens the start of
+ * the access with the reader signed in.
+ */
+function autoLoginConfirmedPage(string $email): array
+{
+    $manager = app(LeadMagnetsManager::class);
+    $manager->request(Resource::query()->where('handle', 'minikurs')->firstOrFail(), $email);
+    $token = tokenFromLastConfirmationMail();
+
+    // The link in the mail is the confirmation: this GET is the click.
+    $page = test()->get(route('lead-magnets.confirm', ['token' => $token]));
+
+    return [Grant::query()->where('email', $email)->firstOrFail(), $token, $page];
+}
+
+function autoLoginStartHref(string $html): ?string
+{
+    return preg_match('~<a href="([^"]+)" data-start~', html_entity_decode($html), $m) === 1 ? $m[1] : null;
+}
+
+it('offers a login link to the start of the access on the confirmed page', function (): void {
+    [, , $page] = autoLoginConfirmedPage('reader@example.com');
+
+    $page->assertOk()->assertSee('data-start', false);
+    $href = autoLoginStartHref($page->getContent());
+
+    expect($href)->toStartWith('http://localhost/!/autologin?');
+
+    $this->get($href)->assertRedirect('/account/courses/minikurs');
+    expect(Auth::id())->toBe($this->reader->id);
+});
+
+it('lets the host name the start with ProvidesAccessStart', function (): void {
+    app()->singleton(AccessSubjectResolver::class, fn () => new class extends AutoLoginDeliveryResolver implements ProvidesAccessStart
+    {
+        public function startUrl(mixed $subject, Resource $resource, Grant $grant): ?string
+        {
+            return 'http://localhost/account/courses/minikurs/lessons/tag-1';
+        }
+    });
+
+    [, , $page] = autoLoginConfirmedPage('reader@example.com');
+
+    $this->get(autoLoginStartHref($page->getContent()))->assertRedirect('/account/courses/minikurs/lessons/tag-1');
+});
+
+it('offers no button for an address without an account', function (): void {
+    AutoLoginDeliveryUser::query()->delete();
+
+    [, , $page] = autoLoginConfirmedPage('stranger@example.com');
+
+    $page->assertOk()->assertDontSee('data-start', false)->assertDontSee('autologin');
+});
+
+it('offers no login for a confirmation older than the login links last', function (): void {
+    [$grant] = autoLoginConfirmedPage('reader@example.com');
+    $links = app(AccessStartLink::class);
+
+    expect($links->for($grant->refresh()))->toStartWith('http://localhost/!/autologin?');
+
+    $grant->entitlement->forceFill(['starts_at' => now()->subDays(15)])->save();
+
+    expect($links->for($grant->refresh()))->toBeNull();
+});
+
+it('offers no button for a grant that is still pending', function (): void {
+    $manager = app(LeadMagnetsManager::class);
+    $manager->request(Resource::query()->where('handle', 'minikurs')->firstOrFail(), 'reader@example.com');
+    $grant = Grant::query()->where('email', 'reader@example.com')->firstOrFail();
+
+    expect(app(AccessStartLink::class)->for($grant))->toBeNull();
+});
+
+it('offers no button when this switch is off', function (): void {
+    config(['lead-magnets.confirmed_start_link' => false]);
+
+    [, , $page] = autoLoginConfirmedPage('reader@example.com');
+
+    $page->assertOk()->assertDontSee('data-start', false)->assertDontSee('autologin');
+});
+
+it('offers no button when the identity login is off', function (): void {
+    config(['identity-contracts.autologin.enabled' => false]);
+
+    [, , $page] = autoLoginConfirmedPage('reader@example.com');
+
+    $page->assertOk()->assertDontSee('data-start', false)->assertDontSee('autologin');
 });

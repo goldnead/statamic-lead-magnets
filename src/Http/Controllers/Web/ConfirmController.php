@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Http\Controllers\Web;
 
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
+use Goldnead\LeadMagnets\Services\AccessStartLink;
 use Goldnead\LeadMagnets\Services\GrantService;
 use Goldnead\LeadMagnets\Support\ReturnUrl;
 use Illuminate\Routing\Controller;
@@ -72,6 +73,8 @@ class ConfirmController extends Controller
             'grant' => $grant,
             'resource' => $grant->resource,
             'lapsed' => $grant->isPending() && $grant->confirmationLapsed(),
+            // A signed login link to the start of an access resource, or null.
+            'startUrl' => app(AccessStartLink::class)->for($grant),
         ]);
     }
 }
