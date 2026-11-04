@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.21.0 — 2026-11-04
+
 ### Added: the confirmed page of an access resource opens the start with the reader signed in
 
 After the confirmation, the page for an access resource shows a link (`data-start`, label `lead-magnets::public.confirmed_start`) that is a
