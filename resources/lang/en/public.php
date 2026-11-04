@@ -8,6 +8,7 @@ return [
     'confirmed_title' => 'Confirmed.',
     'confirmed_body' => '":title" is on its way to your inbox.',
     'confirmed_hint' => 'Sent to :email. Check the spam folder if it takes more than a few minutes.',
+    'confirmed_start' => 'Start now',
     'lapsed_title' => 'This link has expired.',
     'lapsed_body' => 'Confirmation links do not last forever. Ask for the resource again and a fresh one arrives.',
     'files_body' => ':count files, each with its own personal link.',

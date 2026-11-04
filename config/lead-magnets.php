@@ -81,6 +81,15 @@ return [
     'auto_login' => true,
 
     /*
+    | The confirmed page of an access resource offers a button that opens the
+    | start of it with the reader already signed in (needs `auto_login` and the
+    | identity package, and only while the confirmation is younger than
+    | `identity-contracts.autologin.ttl_days`). Set false for the plain page.
+    */
+
+    'confirmed_start_link' => true,
+
+    /*
     |--------------------------------------------------------------------------
     | The file store
     |--------------------------------------------------------------------------

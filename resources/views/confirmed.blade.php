@@ -8,6 +8,9 @@
         <p>{{ __('lead-magnets::public.lapsed_body') }}</p>
     @elseif ($grant->isActive())
         <h1 data-state="active">{{ __('lead-magnets::public.confirmed_title') }}</h1>
+        @if (! empty($startUrl))
+            <p><a href="{{ $startUrl }}" data-start rel="nofollow">{{ __('lead-magnets::public.confirmed_start') }}</a></p>
+        @endif
         <p>{{ __('lead-magnets::public.confirmed_body', ['title' => $resource?->title ?? '']) }}</p>
         <p class="muted">{{ __('lead-magnets::public.confirmed_hint', ['email' => $grant->email]) }}</p>
     @else
