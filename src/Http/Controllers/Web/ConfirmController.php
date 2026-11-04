@@ -69,12 +69,23 @@ class ConfirmController extends Controller
             return redirect()->to($url, 303);
         }
 
-        return response()->view('lead-magnets::confirmed', [
+        $startUrl = app(AccessStartLink::class)->for($grant);
+
+        $response = response()->view('lead-magnets::confirmed', [
             'grant' => $grant,
             'resource' => $grant->resource,
             'lapsed' => $grant->isPending() && $grant->confirmationLapsed(),
             // A signed login link to the start of an access resource, or null.
-            'startUrl' => app(AccessStartLink::class)->for($grant),
+            'startUrl' => $startUrl,
         ]);
+
+        // The page now carries a login link. It must not sit in a shared cache or
+        // go to another site in the Referer header of a click on the page.
+        if ($startUrl !== null) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+            $response->headers->set('Referrer-Policy', 'no-referrer');
+        }
+
+        return $response;
     }
 }

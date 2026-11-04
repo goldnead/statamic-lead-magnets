@@ -191,6 +191,14 @@ it('offers a login link to the start of the access on the confirmed page', funct
     expect(Auth::id())->toBe($this->reader->id);
 });
 
+it('keeps the page with the login link out of caches and out of the Referer header', function (): void {
+    [, , $page] = autoLoginConfirmedPage('reader@example.com');
+
+    $page->assertSee('data-start', false)
+        ->assertHeader('Referrer-Policy', 'no-referrer');
+    expect($page->headers->get('Cache-Control'))->toContain('no-store')->toContain('private');
+});
+
 it('lets the host name the start with startUrl() on its resolver', function (): void {
     app()->singleton(AccessSubjectResolver::class, fn () => new class extends AutoLoginDeliveryResolver
     {

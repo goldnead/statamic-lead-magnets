@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 3.21.1 — 2026-11-04
+
+### Fixed: the confirmed page with a login link is not cached and sends no Referer
+
+When the confirmed page of an access resource carries the login link, the response now has `Cache-Control: no-store, private` and
+`Referrer-Policy: no-referrer`, like the login route itself.
+
 ## 3.21.0 — 2026-11-04
 
 ### Added: the confirmed page of an access resource opens the start with the reader signed in
