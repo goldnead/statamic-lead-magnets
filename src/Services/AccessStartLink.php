@@ -4,7 +4,6 @@ namespace Goldnead\LeadMagnets\Services;
 
 use Goldnead\IdentityContracts\AutoLogin\AutoLogin;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
-use Goldnead\LeadMagnets\Contracts\ProvidesAccessStart;
 use Goldnead\LeadMagnets\Models\Grant;
 
 /**
@@ -59,7 +58,11 @@ class AccessStartLink
             $resolver = app(AccessSubjectResolver::class);
             $subject = $resolver->subjectFor($grant->email, $grant);
 
-            $url = $resolver instanceof ProvidesAccessStart
+            // Optional method of the host's resolver, not part of the interface, so a
+            // host can add it before it has this addon version:
+            // `startUrl(mixed $subject, Resource $resource, Grant $grant): ?string`,
+            // the plain URL of the first thing to open (never a login link).
+            $url = method_exists($resolver, 'startUrl')
                 ? $resolver->startUrl($subject, $resource, $grant)
                 : (trim((string) $resource->access_path) !== '' ? url($resource->access_path) : null);
 

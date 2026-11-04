@@ -6,7 +6,7 @@
 
 After the confirmation, the page for an access resource shows a link (`data-start`, label `lead-magnets::public.confirmed_start`) that is a
 signed, expiring login link of `goldnead/statamic-identity-contracts` to the start of the access. It goes to `access_path`, or to what the host's
-resolver answers when it also implements the new optional `Contracts\ProvidesAccessStart` (`startUrl()`). The link is minted for the grant's own
+resolver answers to an optional `startUrl(mixed $subject, Resource $resource, Grant $grant): ?string` (plain URL, not part of the interface). The link is minted for the grant's own
 address only, only while the grant's access stands and the confirmation is younger than `identity-contracts.autologin.ttl_days` (14), and only for
 a reader with an account; otherwise the page is unchanged. `lead-magnets.confirmed_start_link` (default true) switches it off. The sentence
 about the mail stays.

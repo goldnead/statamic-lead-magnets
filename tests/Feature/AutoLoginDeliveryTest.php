@@ -3,7 +3,6 @@
 use Goldnead\Entitlements\Support\SubjectReference;
 use Goldnead\IdentityContracts\AutoLogin\AutoLogin;
 use Goldnead\LeadMagnets\Contracts\AccessSubjectResolver;
-use Goldnead\LeadMagnets\Contracts\ProvidesAccessStart;
 use Goldnead\LeadMagnets\Integrations\AutomationsBridge;
 use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Models\Grant;
@@ -192,8 +191,8 @@ it('offers a login link to the start of the access on the confirmed page', funct
     expect(Auth::id())->toBe($this->reader->id);
 });
 
-it('lets the host name the start with ProvidesAccessStart', function (): void {
-    app()->singleton(AccessSubjectResolver::class, fn () => new class extends AutoLoginDeliveryResolver implements ProvidesAccessStart
+it('lets the host name the start with startUrl() on its resolver', function (): void {
+    app()->singleton(AccessSubjectResolver::class, fn () => new class extends AutoLoginDeliveryResolver
     {
         public function startUrl(mixed $subject, Resource $resource, Grant $grant): ?string
         {
