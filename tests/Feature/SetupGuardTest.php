@@ -118,3 +118,53 @@ it('still renders the detail page on a migrated install', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('lead-magnets::Resources/Show'));
 });
+
+/*
+ * The detail routes and the writes below the listing carry the same guard as
+ * route middleware, so a missing table answers the setup screen before the route
+ * reaches for a model.
+ */
+
+it('shows the setup screen on the detail page when the tables are missing', function () {
+    $resource = makeResource();
+
+    dropLeadMagnetTables();
+
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('lead-magnets::SetupRequired'));
+});
+
+it('shows the setup screen on save instead of a 500 when the tables are missing', function () {
+    $resource = makeResource();
+
+    dropLeadMagnetTables();
+
+    $this->patch(cp_route('lead-magnets.resources.update', $resource->id), [])
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('lead-magnets::SetupRequired'));
+});
+
+it('shows the setup screen on a grant action instead of a 500 when the tables are missing', function () {
+    dropLeadMagnetTables();
+
+    $this->post(cp_route('lead-magnets.grants.revoke', 1))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('lead-magnets::SetupRequired'));
+});
+
+it('sends a guest from the detail page to the login, not to the setup screen', function () {
+    $resource = makeResource();
+
+    dropLeadMagnetTables();
+
+    $this->app['auth']->forgetGuards();
+
+    $this->get(cp_route('lead-magnets.resources.show', $resource->id))
+        ->assertRedirect();
+});
+
+it('still answers 404 for an unknown resource on a migrated install', function () {
+    $this->get(cp_route('lead-magnets.resources.show', 999))
+        ->assertNotFound();
+});

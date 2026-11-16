@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- Control Panel: the detail pages and the writes below the resources listing (edit, update, delete, grant revoke / reinstate / resend) show the setup screen when the addon's tables are missing, instead of a query error (HTTP 500).
+
+### Upgrading
+
+- Requires statamic-brand-context 1.27 or newer. No migration, no new config key.
+
 ## 3.21.1 — 2026-11-04
 
 ### Fixed: the confirmed page with a login link is not cached and sends no Referer
