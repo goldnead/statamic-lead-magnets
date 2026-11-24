@@ -85,6 +85,6 @@ class DeliverConfirmedResource
 
         ResourceConfirmed::dispatch($grant);
 
-        $this->delivery->deliver($grant);
+        $this->delivery->deliverOrHold($grant);
     }
 }
