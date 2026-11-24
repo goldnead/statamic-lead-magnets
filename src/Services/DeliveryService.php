@@ -127,7 +127,12 @@ class DeliveryService
             return $this->deliver($grant);
         } catch (\Throwable $e) {
             report($e);
-            $this->note($grant, 'delivery_failed');
+
+            try {
+                $this->note($grant, 'delivery_failed');
+            } catch (\Throwable $noteFailure) {
+                report($noteFailure);
+            }
 
             return false;
         }

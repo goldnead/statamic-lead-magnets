@@ -244,9 +244,15 @@ class GrantService
         // The confirmation secret goes with the access. A pending link that
         // survived a revocation would activate the grant again on the next
         // click.
-        $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
+        $revoked = Entitlements::revoke($entitlement, $reason);
 
-        return Entitlements::revoke($entitlement, $reason);
+        // Only after the revocation went through: a refused revoke must not
+        // also kill a pending confirmation link.
+        if ($revoked) {
+            $grant->forceFill(['token_hash' => null, 'confirm_expires_at' => null])->save();
+        }
+
+        return $revoked;
     }
 
     /**

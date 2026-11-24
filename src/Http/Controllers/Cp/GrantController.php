@@ -61,7 +61,10 @@ class GrantController extends Controller
 
         $reinstated = $grants->reinstate($record);
 
-        if (! ($reinstated->entitlement()->first()?->state()->grantsAccess() ?? false)) {
+        // Scheduled counts: the grant is restored and the clock opens it.
+        $state = $reinstated->entitlement()->first()?->state();
+
+        if ($state === null || ! ($state->grantsAccess() || $state->isProvisional())) {
             return back()->withErrors(['grant' => __('lead-magnets::grants.reinstate_failed')]);
         }
 

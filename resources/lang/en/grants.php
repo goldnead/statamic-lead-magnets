@@ -18,7 +18,7 @@ return [
     'resend' => 'Send the link again',
     'revoke_confirm' => 'Revoke this access? Links already sent stop working immediately.',
     'revoked_flash' => 'Access revoked.',
-    'revoke_failed' => 'Access could not be revoked: the grant has no entitlement or the revocation was refused.',
+    'revoke_failed' => 'Access was not revoked: it is already revoked, the grant has no entitlement, or the revocation was refused.',
     'reinstate_failed' => 'Access could not be reinstated: the grant has no entitlement or it is not active afterwards.',
     'reinstated' => 'Access reinstated.',
     'resent' => 'A fresh download link is on its way.',

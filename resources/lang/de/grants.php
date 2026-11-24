@@ -18,7 +18,7 @@ return [
     'resend' => 'Link erneut senden',
     'revoke_confirm' => 'Diesen Zugang entziehen? Bereits verschickte Links funktionieren sofort nicht mehr.',
     'revoked_flash' => 'Zugang entzogen.',
-    'revoke_failed' => 'Der Zugriff konnte nicht entzogen werden: Der Zugang hat keine Berechtigung oder der Entzug wurde abgelehnt.',
+    'revoke_failed' => 'Der Zugriff wurde nicht entzogen: Er ist schon entzogen, der Zugang hat keine Berechtigung oder der Entzug wurde abgelehnt.',
     'reinstate_failed' => 'Der Zugriff konnte nicht wiederhergestellt werden: Der Zugang hat keine Berechtigung oder ist danach nicht aktiv.',
     'reinstated' => 'Zugang wiederhergestellt.',
     'resent' => 'Ein frischer Download-Link ist unterwegs.',
