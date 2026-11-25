@@ -39,6 +39,10 @@ class SuppressionBridge extends Bridge
         $facade = $this->facade();
 
         if (! $this->rootHas($facade, 'isSuppressed')) {
+            // Still open: the send goes out. But a gate without the method is
+            // a version mismatch, and nobody would otherwise see the bounce list being skipped.
+            Log::warning('[lead-magnets] suppression gate has no isSuppressed(), the send is not checked against it.');
+
             return false;
         }
 
