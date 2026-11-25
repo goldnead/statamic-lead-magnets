@@ -70,11 +70,11 @@ it('keeps a repeat request from throwing when the re-send mail fails', function 
 
     // The repeat request re-sends the file. A mailer failure there must not
     // surface as a 500 to the visitor; it is held on the grant like on confirm.
-    $this->withoutExceptionHandling();
-    $returned = app(LeadMagnetsManager::class)
-        ->request($grant->resource, 'reader@example.com');
+    // Through the route, like the visitor: no exception handling switched off.
+    $response = test()->post(route('lead-magnets.request'), ['email' => 'reader@example.com', 'resource' => 'warm_up']);
 
-    expect($returned->id)->toBe($grant->id)
+    expect($response->status())->toBeLessThan(500)
+        ->and(Grant::query()->count())->toBe(1)
         ->and($grant->refresh()->meta['last_hold'] ?? null)->toBe('delivery_failed');
 });
 
