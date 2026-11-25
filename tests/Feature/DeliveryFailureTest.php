@@ -2,7 +2,6 @@
 
 use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Contracts\SenderIdentityResolver;
-use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
