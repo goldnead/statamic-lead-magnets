@@ -7,5 +7,7 @@ return [
     'migrate_nothing' => 'Keine Zugänge mehr zu übernehmen.',
     'migrate_already_done' => 'Die alten Status-Spalten sind bereits entfernt: diese Migration ist gelaufen.',
     'migrate_orphan' => 'Zugang :id zeigt auf eine Ressource, die es nicht mehr gibt. Übersprungen.',
+    'migrate_revoke_failed' => 'Zugang :id wurde übernommen, aber sein Entzug ist nicht durchgegangen. In entitlements prüfen.',
+    'migrate_failed' => ':failed Zugang/Zugänge konnten nicht entzogen werden. Der Lauf gilt als fehlgeschlagen.',
     'migrated_revocation' => 'In lead-magnets 1.x am :at entzogen, übernommen durch lead-magnets:migrate-grants.',
 ];

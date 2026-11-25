@@ -97,6 +97,16 @@ class DownloadController extends Controller
         // plain link of a single file, where there is nothing to name.
         $fileKey = $entry !== null && $resource->hasMultipleFiles() ? $entry['key'] : null;
 
+        // Every 404 is decided before the redemption is counted. A download that
+        // never reaches the reader must not spend the grant's cap.
+        if ($resource->isLink()) {
+            abort_if(! $resource->link_url, 404);
+        } else {
+            $path = $entry['path'] ?? $resource->file_path;
+
+            abort_unless($path && Storage::disk($resource->disk())->exists($path), 404);
+        }
+
         $download = $grants->recordDownload($record, [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -106,8 +116,6 @@ class DownloadController extends Controller
         ResourceDownloaded::dispatch($record, $download);
 
         if ($resource->isLink()) {
-            abort_if(! $resource->link_url, 404);
-
             // Counted first, then forwarded: a redirect that is not audited is
             // a delivery nobody can prove happened.
             return redirect()->away($resource->link_url);
@@ -130,10 +138,6 @@ class DownloadController extends Controller
 
             return $this->serve($disk, $entry['path'], $this->filename($name, $entry['path']));
         }
-
-        $path = $entry['path'] ?? $resource->file_path;
-
-        abort_unless($path && $disk->exists($path), 404);
 
         return $this->serve($disk, $path, $this->filename($resource->title, $path));
     }

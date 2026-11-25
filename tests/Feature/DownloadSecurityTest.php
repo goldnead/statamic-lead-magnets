@@ -216,3 +216,99 @@ it('404s when the file behind the resource is gone', function () {
 
     $this->get(app(DownloadLink::class)->for($grant))->assertNotFound();
 });
+
+it('does not count a download whose file is gone, so the cap is not spent on a 404', function () {
+    Event::fake([ResourceDownloaded::class]);
+
+    $grant = activeGrant(['max_downloads' => 1]);
+
+    Storage::disk('lead-magnets')->delete('warm-up.txt');
+
+    $url = app(DownloadLink::class)->for($grant);
+
+    $this->get($url)->assertNotFound();
+
+    expect(Grant::query()->sole()->download_count)->toBe(0)
+        ->and(Grant::query()->sole()->downloads()->count())->toBe(0);
+
+    Event::assertNotDispatched(ResourceDownloaded::class);
+});
+
+it('stops counting once the cap is reached: no further audit row, no further counter step', function () {
+    Event::fake([ResourceDownloaded::class]);
+
+    $grant = activeGrant(['max_downloads' => 1]);
+
+    $url = app(DownloadLink::class)->for($grant);
+
+    $this->get($url)->assertOk();
+    $this->get($url)->assertForbidden();
+    $this->get($url)->assertForbidden();
+
+    $grant->refresh();
+
+    expect($grant->download_count)->toBe(1)
+        ->and($grant->downloads()->count())->toBe(1);
+
+    Event::assertDispatchedTimes(ResourceDownloaded::class, 1);
+});
+
+it('stops counting a multi-file list per file once that file reached the cap', function () {
+    Event::fake([ResourceDownloaded::class]);
+
+    $resource = makeResource([
+        'handle' => 'capped-list',
+        'title' => 'Capped',
+        'requires_confirmation' => false,
+        'max_downloads' => 1,
+        'files' => [
+            ['key' => 'aaaa1111', 'path' => 'capped/a.txt', 'label' => 'A', 'group' => null],
+            ['key' => 'bbbb2222', 'path' => 'capped/b.txt', 'label' => 'B', 'group' => null],
+        ],
+        'file_path' => 'capped/a.txt',
+    ]);
+
+    Storage::disk('lead-magnets')->put('capped/a.txt', 'a');
+    Storage::disk('lead-magnets')->put('capped/b.txt', 'b');
+
+    $this->post(route('lead-magnets.request'), [
+        'email' => 'reader@example.com',
+        'resource' => $resource->handle,
+    ]);
+
+    $grant = Grant::query()->with(['resource', 'entitlement'])->sole();
+    $downloads = app(DownloadLink::class);
+
+    $this->get($downloads->forFile($grant, 'aaaa1111'))->assertOk();
+    $this->get($downloads->forFile($grant, 'aaaa1111'))->assertForbidden();
+    $this->get($downloads->forFile($grant, 'bbbb2222'))->assertOk();
+
+    $grant->refresh();
+
+    expect($grant->downloads()->where('file_key', 'aaaa1111')->count())->toBe(1)
+        ->and($grant->downloads()->where('file_key', 'bbbb2222')->count())->toBe(1)
+        ->and($grant->download_count)->toBe(2);
+
+    Event::assertDispatchedTimes(ResourceDownloaded::class, 2);
+});
+
+it('does not count a link resource that has no URL to forward to', function () {
+    Event::fake([ResourceDownloaded::class]);
+
+    $grant = activeGrant([
+        'handle' => 'external-empty',
+        'delivery_type' => Resource::TYPE_LINK,
+        'file_path' => null,
+        'link_url' => 'https://example.com/placeholder',
+    ]);
+
+    // The URL is taken away after the grant exists, as an editor could do.
+    Resource::query()->whereKey($grant->resource_id)->update(['link_url' => null]);
+
+    $this->get(app(DownloadLink::class)->for($grant))->assertNotFound();
+
+    expect(Grant::query()->sole()->download_count)->toBe(0)
+        ->and(Grant::query()->sole()->downloads()->count())->toBe(0);
+
+    Event::assertNotDispatched(ResourceDownloaded::class);
+});

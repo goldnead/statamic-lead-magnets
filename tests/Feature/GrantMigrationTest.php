@@ -1,10 +1,16 @@
 <?php
 
+use Goldnead\Entitlements\Contracts\PackageResolver;
+use Goldnead\Entitlements\Contracts\SubjectResolver;
+use Goldnead\Entitlements\EntitlementManager;
 use Goldnead\Entitlements\Enums\EntitlementState;
+use Goldnead\Entitlements\Facades\Entitlements;
 use Goldnead\Entitlements\Models\Entitlement;
+use Goldnead\IdentityContracts\Identity;
 use Goldnead\LeadMagnets\Events\ResourceDelivered;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Support\LeadMagnetSubject;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -179,6 +185,25 @@ it('skips a grant whose resource is gone and says so', function () {
         ->assertSuccessful();
 
     expect(Entitlement::query()->count())->toBe(0);
+});
+
+it('fails the run when a revocation does not go through, instead of reporting success', function () {
+    legacyGrant('stuck-revoke@example.com', 'revoked', ['revoked_at' => Carbon::now()->subDays(2)]);
+
+    // A partial mock would skip the constructor and leave the manager's
+    // properties unset, so the real manager is subclassed with only revoke()
+    // answering "did not go through".
+    Entitlements::swap(new class(app(Dispatcher::class), app(SubjectResolver::class), app(PackageResolver::class)) extends EntitlementManager
+    {
+        public function revoke(Entitlement $entitlement, string $reason, ?Identity $actor = null): bool
+        {
+            return false;
+        }
+    });
+
+    $this->artisan('lead-magnets:migrate-grants')
+        ->expectsOutputToContain('could not be revoked')
+        ->assertFailed();
 });
 
 it('refuses to drop the legacy columns while a grant is unmigrated', function () {
