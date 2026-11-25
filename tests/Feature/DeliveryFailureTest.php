@@ -2,6 +2,7 @@
 
 use Goldnead\Entitlements\Enums\EntitlementState;
 use Goldnead\LeadMagnets\Contracts\SenderIdentityResolver;
+use Goldnead\LeadMagnets\LeadMagnetsManager;
 use Goldnead\LeadMagnets\Mail\DeliveryMail;
 use Goldnead\LeadMagnets\Models\Grant;
 use Goldnead\LeadMagnets\Sending\BrandMailer;
@@ -46,6 +47,35 @@ it('keeps the grant active and records the failure when the delivery mail throws
     expect($grant->state())->toBe(EntitlementState::Active)
         ->and($grant->delivered_at)->toBeNull()
         ->and($grant->meta['last_hold'] ?? null)->toBe('delivery_failed');
+});
+
+it('keeps a repeat request from throwing when the re-send mail fails', function () {
+    makeResource(['handle' => 'warm_up', 'requires_confirmation' => false]);
+
+    // First request activates the grant; the mailer works.
+    test()->post(route('lead-magnets.request'), ['email' => 'reader@example.com', 'resource' => 'warm_up']);
+    $grant = Grant::query()->sole();
+
+    app()->instance(BrandMailer::class, new class(app(SenderIdentityResolver::class)) extends BrandMailer
+    {
+        public function send(?int $brandId, string $to, ?string $toName, Mailable $mailable): bool
+        {
+            if ($mailable instanceof DeliveryMail) {
+                throw new RuntimeException('smtp down');
+            }
+
+            return parent::send($brandId, $to, $toName, $mailable);
+        }
+    });
+
+    // The repeat request re-sends the file. A mailer failure there must not
+    // surface as a 500 to the visitor; it is held on the grant like on confirm.
+    $this->withoutExceptionHandling();
+    $returned = app(LeadMagnetsManager::class)
+        ->request($grant->resource, 'reader@example.com');
+
+    expect($returned->id)->toBe($grant->id)
+        ->and($grant->refresh()->meta['last_hold'] ?? null)->toBe('delivery_failed');
 });
 
 it('does not report a revoke as done when the grant has no entitlement', function () {

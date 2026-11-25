@@ -63,8 +63,12 @@ class LeadMagnetsManager
         // Not when this call was the one that activated the grant. Delivery for
         // a first activation happens on the entitlements event, and sending
         // here as well would put two identical mails in the same inbox.
+        //
+        // A mailer failure is held on the grant instead of thrown, like on the
+        // confirmation path: the visitor has already been recorded, and a 500
+        // here would tell them nothing the editor's "send again" cannot fix.
         if (! $grant->justActivated && $grant->isRedeemable()) {
-            $this->delivery->deliver($grant);
+            $this->delivery->deliverOrHold($grant);
         }
 
         return $grant;
