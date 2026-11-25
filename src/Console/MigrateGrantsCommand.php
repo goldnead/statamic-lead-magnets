@@ -82,6 +82,7 @@ class MigrateGrantsCommand extends Command
 
             $moved = 0;
             $skipped = 0;
+            $failed = 0;
             $tally = [];
 
             foreach ($candidates as $grant) {
@@ -105,7 +106,13 @@ class MigrateGrantsCommand extends Command
                     continue;
                 }
 
-                $this->carry($grant, $resource, $state);
+                if (! $this->carry($grant, $resource, $state)) {
+                    $this->error(__('lead-magnets::console.migrate_revoke_failed', ['id' => (string) $grant->id]));
+                    $failed++;
+
+                    continue;
+                }
+
                 $moved++;
             }
 
@@ -118,12 +125,23 @@ class MigrateGrantsCommand extends Command
                 'skipped' => (string) $skipped,
             ]));
 
+            if ($failed > 0) {
+                $this->error(__('lead-magnets::console.migrate_failed', ['failed' => (string) $failed]));
+
+                return self::FAILURE;
+            }
+
             return self::SUCCESS;
         });
     }
 
-    /** Write one grant's legacy state into entitlements and link the two. */
-    protected function carry(Grant $grant, Resource $resource, string $state): void
+    /**
+     * Write one grant's legacy state into entitlements and link the two.
+     *
+     * Returns false when a revocation the legacy state calls for did not go
+     * through. The link is still written: the grant is carried either way.
+     */
+    protected function carry(Grant $grant, Resource $resource, string $state): bool
     {
         $subject = LeadMagnetSubject::for($grant->email);
         $source = LeadMagnetSubject::source();
@@ -138,7 +156,7 @@ class MigrateGrantsCommand extends Command
                 'confirm_expires_at' => $grant->confirm_expires_at ?? $this->instant($grant, 'expires_at'),
             ])->save();
 
-            return;
+            return true;
         }
 
         $entitlement = Entitlements::grant(
@@ -155,8 +173,10 @@ class MigrateGrantsCommand extends Command
             $meta,
         );
 
+        $revoked = true;
+
         if ($state === 'revoked') {
-            Entitlements::revoke(
+            $revoked = Entitlements::revoke(
                 $entitlement,
                 __('lead-magnets::console.migrated_revocation', [
                     'at' => (string) ($this->instant($grant, 'revoked_at')?->toDateString() ?? '—'),
@@ -165,6 +185,8 @@ class MigrateGrantsCommand extends Command
         }
 
         $grant->forceFill(['entitlement_id' => $entitlement->getKey(), 'attempt' => 1])->save();
+
+        return $revoked;
     }
 
     /**
