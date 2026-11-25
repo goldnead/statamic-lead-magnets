@@ -113,6 +113,32 @@ class DeliveryService
     }
 
     /**
+     * Deliver, but never let a failing mailer take the confirmation with it.
+     *
+     * A confirmation spends its token and activates the grant before this
+     * runs, so the visitor cannot click again. A throw here would leave an
+     * active grant without a mail and without a trace on the grant. The cause
+     * is reported and recorded as `last_hold`, and the editor's "send again"
+     * is the way out.
+     */
+    public function deliverOrHold(Grant $grant): bool
+    {
+        try {
+            return $this->deliver($grant);
+        } catch (\Throwable $e) {
+            report($e);
+
+            try {
+                $this->note($grant, 'delivery_failed');
+            } catch (\Throwable $noteFailure) {
+                report($noteFailure);
+            }
+
+            return false;
+        }
+    }
+
+    /**
      * Send the delivery mail with a fresh signed link.
      *
      * Re-sendable on purpose. A link that expired unused is a support request

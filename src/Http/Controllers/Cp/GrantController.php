@@ -45,7 +45,9 @@ class GrantController extends Controller
             ]);
         }
 
-        $grants->revoke($record, $reason);
+        if (! $grants->revoke($record, $reason)) {
+            return back()->withErrors(['grant' => __('lead-magnets::grants.revoke_failed')]);
+        }
 
         return back()->with('success', __('lead-magnets::grants.revoked'));
     }
@@ -57,7 +59,14 @@ class GrantController extends Controller
         $record = Grant::query()->with(['resource', 'entitlement'])->find($grant);
         abort_if($record === null, 404);
 
-        $grants->reinstate($record);
+        $reinstated = $grants->reinstate($record);
+
+        // Scheduled counts: the grant is restored and the clock opens it.
+        $state = $reinstated->entitlement()->first()?->state();
+
+        if ($state === null || ! ($state->grantsAccess() || $state->isProvisional())) {
+            return back()->withErrors(['grant' => __('lead-magnets::grants.reinstate_failed')]);
+        }
 
         return back()->with('success', __('lead-magnets::grants.reinstated'));
     }
