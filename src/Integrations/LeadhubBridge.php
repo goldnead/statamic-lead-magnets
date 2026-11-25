@@ -4,6 +4,7 @@ namespace Goldnead\LeadMagnets\Integrations;
 
 use Goldnead\Leadhub\Facades\LeadHub;
 use Goldnead\LeadMagnets\Models\Grant;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Optional: goldnead/statamic-leadhub.
@@ -74,6 +75,8 @@ class LeadhubBridge extends Bridge
             };
 
             if ($id === null) {
+                Log::warning('[lead-magnets] leadhub answered the contact sync without an id, no tags written.');
+
                 return null;
             }
 

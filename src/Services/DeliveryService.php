@@ -204,7 +204,11 @@ class DeliveryService
             return false;
         }
 
-        $grant->forceFill(['delivered_at' => Carbon::now()])->save();
+        // A hold from an earlier attempt no longer describes this grant.
+        $grant->forceFill([
+            'delivered_at' => Carbon::now(),
+            'meta' => array_diff_key($grant->meta ?? [], ['last_hold' => true, 'last_hold_at' => true]),
+        ])->save();
 
         ResourceDelivered::dispatch($grant);
 
@@ -512,7 +516,10 @@ class DeliveryService
     {
         $grant->forceFill([
             'delivered_at' => Carbon::now(),
-            'meta' => array_merge($grant->meta ?? [], ['delivery' => $how]),
+            'meta' => array_merge(
+                array_diff_key($grant->meta ?? [], ['last_hold' => true, 'last_hold_at' => true]),
+                ['delivery' => $how],
+            ),
         ])->save();
 
         ResourceDelivered::dispatch($grant);
